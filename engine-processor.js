@@ -4,6 +4,10 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.phase = 0;
     this.lpfState = 0;
     this.bpfState = 0;
+    
+    // Pre-calculate random phase offsets for each harmonic to break phase coherence
+    // This makes it sound less like a synth/organ
+    this.phaseOffsets = new Float32Array(32).map(() => Math.random() * 2 * Math.PI);
   }
 
   static get parameterDescriptors() {
@@ -28,6 +32,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     
     // Constant for harmonic count
     const n_harm = 24;
+    const nyquist = sampleRate / 2;
 
     for (let i = 0; i < channel.length; i++) {
       // Get current parameters
@@ -37,8 +42,6 @@ class EngineProcessor extends AudioWorkletProcessor {
       const noiseGain = noiseGainParams.length > 1 ? noiseGainParams[i] : noiseGainParams[0];
 
       // 1. Fundamental Frequency & Jitter
-      // Add micro-timing variations (jitter) to simulate imperfect combustion
-      // More jitter at idle/low throttle
       const jitterAmount = 0.002 + 0.005 * (1.0 - throttle);
       const jitter = 1.0 + (Math.random() - 0.5) * jitterAmount;
 
@@ -50,39 +53,44 @@ class EngineProcessor extends AudioWorkletProcessor {
         this.phase -= 2.0 * Math.PI;
       }
 
-      // 2. Harmonic Synthesis
-      // Alpha controls harmonic decay (tone brightness)
-      // Lower alpha = brighter/harsher
+      // 2. Harmonic Synthesis (Anti-aliased)
       const alpha = 1.3 - 0.9 * throttle;
       
       let signal = 0;
       
       for (let k = 1; k <= n_harm; k++) {
-        const amp = 1.0 / Math.pow(k, alpha);
-        // Phase randomization per harmonic would be better but expensive.
-        // We stick to aligned phase for "tight" engine sound.
-        signal += amp * Math.sin(k * this.phase);
+        const freq = k * f_fire;
+        
+        // Anti-aliasing: Skip harmonics above Nyquist frequency
+        if (freq >= nyquist) break;
+
+        // Amplitude decay
+        let amp = 1.0 / Math.pow(k, alpha);
+
+        // Reduce high harmonics amplitude further to avoid "buzz"
+        // Frequencies above 4kHz roll off
+        if (freq > 4000) {
+            amp *= Math.max(0, 1.0 - (freq - 4000) / 10000);
+        }
+
+        // Use pre-calculated phase offset for organic sound
+        // k * this.phase aligns them perfectly (sawtooth-like) -> electronic sound
+        // Adding offset breaks this perfect alignment
+        signal += amp * Math.sin(k * this.phase + this.phaseOffsets[k]);
       }
 
-      // 3. Intake/Mechanical Noise (Low Pass Filtered)
-      // Simulates air intake and mechanical rumble
+      // 3. Intake/Mechanical Noise
       const white = (Math.random() * 2.0 - 1.0);
-      
-      // LPF cutoff opens with throttle
       const noiseLpfAlpha = 0.1 + 0.3 * throttle; 
       this.lpfState += noiseLpfAlpha * (white - this.lpfState);
-      
-      // Mix filtered noise
       const noiseComp = noiseGain * (0.5 + 2.0 * throttle) * this.lpfState;
       signal += noiseComp;
 
-      // 4. Body Resonance / Exhaust Note (Simulated)
-      // Use a leaky integrator to add "body" or bass boost that smears the sound
+      // 4. Body Resonance
       this.bpfState += 0.02 * (signal - this.bpfState);
       signal += 0.6 * this.bpfState; 
 
-      // 5. Distortion / Saturation
-      // Drive increases significantly with throttle for "growl"
+      // 5. Distortion
       const drive = 1.0 + 3.0 * throttle;
       signal = Math.tanh(drive * signal);
 
