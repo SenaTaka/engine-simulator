@@ -3,9 +3,11 @@ class EngineProcessor extends AudioWorkletProcessor {
     super();
     this.phase = 0;
     this.lpfState = 0;
+    this.hpfState = 0;
     this.bpfState = 0;
     this.postLpfState = 0;
     this.randomWalk = 0;
+    this.combPulse = 0;
     
     // Pre-calculate random phase offsets for each harmonic to break phase coherence
     // This makes it sound less like a synth/organ
@@ -18,7 +20,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'rpm', defaultValue: 1000, minValue: 0, maxValue: 12000 },
       { name: 'throttle', defaultValue: 0.15, minValue: 0, maxValue: 1 },
       { name: 'ncyl', defaultValue: 4, minValue: 1, maxValue: 12 },
-      { name: 'noiseGain', defaultValue: 0.1, minValue: 0, maxValue: 1 }
+      { name: 'noiseGain', defaultValue: 0.2, minValue: 0, maxValue: 1 }
     ];
   }
 
@@ -89,11 +91,27 @@ class EngineProcessor extends AudioWorkletProcessor {
         signal += amp * harmonicDamping * Math.sin(k * this.phase + this.phaseOffsets[k]);
       }
 
-      // 3. Intake/Mechanical Noise
+      // 3. Intake/Mechanical/Combustion Noise (multi-band)
       const white = (Math.random() * 2.0 - 1.0);
-      const noiseLpfAlpha = 0.1 + 0.3 * throttle; 
-      this.lpfState += noiseLpfAlpha * (white - this.lpfState);
-      const noiseComp = noiseGain * (0.5 + 2.0 * throttle) * this.lpfState;
+
+      // Intake rumble: low-mid broadband that grows strongly with throttle
+      const intakeLpfAlpha = 0.05 + 0.18 * throttle;
+      this.lpfState += intakeLpfAlpha * (white - this.lpfState);
+      const intakeNoise = (0.35 + 1.35 * throttle) * this.lpfState;
+
+      // Mechanical hiss: high-frequency texture, stronger at high RPM
+      this.hpfState += 0.055 * (white - this.hpfState);
+      const hpf = white - this.hpfState;
+      const rpmNorm = Math.min(1.0, rpm / 8000.0);
+      const mechNoise = (0.18 + 0.75 * rpmNorm) * hpf;
+
+      // Combustion crackle: bursty modulation tied to firing phase
+      const cycleEnergy = 0.5 + 0.5 * Math.sin(this.phase);
+      const burst = Math.pow(cycleEnergy, 3.2);
+      this.combPulse = 0.9 * this.combPulse + 0.1 * burst;
+      const combustionNoise = this.combPulse * white * (0.2 + 0.9 * throttle);
+
+      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise);
       signal += noiseComp;
 
       // 4. Body Resonance
@@ -110,7 +128,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       signal = 0.82 * this.postLpfState + 0.18 * signal;
 
       // Volume scaling
-      signal *= 0.35;
+      signal *= 0.34;
 
       channel[i] = signal;
     }
