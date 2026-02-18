@@ -9,6 +9,8 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.randomWalk = 0;
     this.combPulse = 0;
     this.turboPhase = 0;
+    this.boxerPulse = 0;
+    this.boxerRumbleState = 0;
     
     // Pre-calculate random phase offsets for each harmonic to break phase coherence
     // This makes it sound less like a synth/organ
@@ -23,6 +25,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'ncyl', defaultValue: 4, minValue: 1, maxValue: 12 },
       { name: 'noiseGain', defaultValue: 0.2, minValue: 0, maxValue: 1 },
       { name: 'turboMode', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'boxerMode', defaultValue: 0, minValue: 0, maxValue: 1 }
       { name: 'vtecMode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'fa24Mode', defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
@@ -39,6 +42,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     const ncylParams = parameters.ncyl;
     const noiseGainParams = parameters.noiseGain;
     const turboModeParams = parameters.turboMode;
+    const boxerModeParams = parameters.boxerMode;
     const vtecModeParams = parameters.vtecMode;
     const fa24ModeParams = parameters.fa24Mode;
     
@@ -53,6 +57,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       const ncyl = ncylParams.length > 1 ? ncylParams[i] : ncylParams[0];
       const noiseGain = noiseGainParams.length > 1 ? noiseGainParams[i] : noiseGainParams[0];
       const turboMode = turboModeParams.length > 1 ? turboModeParams[i] : turboModeParams[0];
+      const boxerMode = boxerModeParams.length > 1 ? boxerModeParams[i] : boxerModeParams[0];
       const vtecMode = vtecModeParams.length > 1 ? vtecModeParams[i] : vtecModeParams[0];
       const fa24Mode = fa24ModeParams.length > 1 ? fa24ModeParams[i] : fa24ModeParams[0];
 
@@ -127,6 +132,24 @@ class EngineProcessor extends AudioWorkletProcessor {
         signal += amp * harmonicDamping * Math.sin(k * this.phase + this.phaseOffsets[k]);
       }
 
+      // Subaru FA24-like boxer cadence: create slightly uneven paired pulses
+      // and low-mid "dorodoro" energy instead of smooth harmonic continuity.
+      const pulseA = Math.pow(Math.max(0, Math.sin(this.phase + 0.10)), 7.0);
+      const pulseB = Math.pow(Math.max(0, Math.sin(this.phase + 1.22)), 7.0);
+      const pairedPulse = pulseA + 0.78 * pulseB;
+
+      // Slow loping envelope creates the characteristic rolling boxer texture.
+      const loping = 0.55 + 0.45 * Math.sin(this.phase * 0.5 + 0.9);
+      this.boxerPulse = 0.84 * this.boxerPulse + 0.16 * pairedPulse * loping;
+
+      const boxerFund = Math.sin(this.phase * 0.5 + 0.2);
+      const boxerOdd = Math.sin(this.phase * 1.5 + 1.0);
+      const boxerLow = 0.62 * boxerFund + 0.34 * boxerOdd;
+      this.boxerRumbleState += 0.028 * (boxerLow - this.boxerRumbleState);
+      const boxerRumble = (0.58 + 0.42 * this.boxerPulse) * this.boxerRumbleState;
+
+      // Shift part of smooth harmonics into lumpy low-mid boxer band.
+      signal = signal * (1.0 - 0.22 * boxerMode) + boxerRumble * (0.72 * boxerMode);
       // High-cam lobe texture: slight extra emphasis around 2nd/3rd order at crossover.
       const camLobe = (0.12 + 0.18 * throttle) * vtecBlend;
       signal += camLobe * Math.sin(2.0 * this.phase + 0.2);
@@ -165,6 +188,11 @@ class EngineProcessor extends AudioWorkletProcessor {
       this.combPulse = 0.9 * this.combPulse + 0.1 * burst;
       const combustionNoise = this.combPulse * white * (0.2 + 0.9 * throttle);
 
+      // Alternating-bank roughness in the 100-280Hz area for boxer exhaust note.
+      const boxerNoiseShape = 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(this.phase * 0.5 + 1.25));
+      const boxerNoise = boxerMode * boxerNoiseShape * this.lpfState * (0.45 + 0.95 * throttle);
+
+      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise);
       const rpmWindow = Math.max(0.0, 1.0 - Math.abs(rpm - 3200.0) / 2600.0);
       const liftOff = Math.max(0.0, 0.35 - throttle) / 0.35;
       const boxerBurble = fa24Mode * rpmWindow * liftOff * (0.16 + 0.22 * (white * white));
