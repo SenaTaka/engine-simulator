@@ -26,6 +26,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'noiseGain', defaultValue: 0.2, minValue: 0, maxValue: 1 },
       { name: 'turboMode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'boxerMode', defaultValue: 0, minValue: 0, maxValue: 1 }
+      { name: 'vtecMode', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'fa24Mode', defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
   }
 
@@ -41,6 +43,8 @@ class EngineProcessor extends AudioWorkletProcessor {
     const noiseGainParams = parameters.noiseGain;
     const turboModeParams = parameters.turboMode;
     const boxerModeParams = parameters.boxerMode;
+    const vtecModeParams = parameters.vtecMode;
+    const fa24ModeParams = parameters.fa24Mode;
     
     // Constant for harmonic count
     const n_harm = 24;
@@ -54,6 +58,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       const noiseGain = noiseGainParams.length > 1 ? noiseGainParams[i] : noiseGainParams[0];
       const turboMode = turboModeParams.length > 1 ? turboModeParams[i] : turboModeParams[0];
       const boxerMode = boxerModeParams.length > 1 ? boxerModeParams[i] : boxerModeParams[0];
+      const vtecMode = vtecModeParams.length > 1 ? vtecModeParams[i] : vtecModeParams[0];
+      const fa24Mode = fa24ModeParams.length > 1 ? fa24ModeParams[i] : fa24ModeParams[0];
 
       // 1. Fundamental Frequency & Jitter
       const jitterAmount = 0.001 + 0.003 * (1.0 - throttle);
@@ -73,20 +79,46 @@ class EngineProcessor extends AudioWorkletProcessor {
       }
 
       // 2. Harmonic Synthesis (Anti-aliased)
-      const alpha = 1.35 - 0.85 * throttle;
-      const harmonicDamping = Math.max(0.45, 1.0 - (rpm / 12000.0) * 0.5);
-      
+      // VTEC profile: blend from low-cam tone to high-cam tone around crossover RPM.
+      const crossoverCenter = 5600.0;
+      const crossoverWidth = 900.0;
+      const x = (rpm - (crossoverCenter - crossoverWidth * 0.5)) / crossoverWidth;
+      const vtecBlendRaw = Math.min(1.0, Math.max(0.0, x));
+      const vtecBlend = vtecMode * (vtecBlendRaw * vtecBlendRaw * (3.0 - 2.0 * vtecBlendRaw));
+
+      const alphaLowCam = 1.35 - 0.85 * throttle;
+      const alphaHighCam = 1.00 - 0.55 * throttle;
+      const alpha = alphaLowCam + (alphaHighCam - alphaLowCam) * vtecBlend;
+
+      const dampingLowCam = Math.max(0.45, 1.0 - (rpm / 12000.0) * 0.5);
+      const dampingHighCam = Math.max(0.35, 1.08 - (rpm / 12000.0) * 0.38);
+      const harmonicDamping = dampingLowCam + (dampingHighCam - dampingLowCam) * vtecBlend;
+
       let signal = 0;
+
+      // FA24: emphasize low-order boxer pulse with slight off-beat wobble.
+      const boxerLump = fa24Mode * (0.55 + 0.45 * throttle);
+      const boxerWobble = fa24Mode * (0.01 + 0.02 * throttle) * Math.sin(0.5 * this.phase + 0.9);
       
       for (let k = 1; k <= n_harm; k++) {
         const freq = k * f_fire;
-        
+
         // Anti-aliasing: Skip harmonics above Nyquist frequency
         if (freq >= nyquist) break;
 
         // Amplitude decay
         let amp = 1.0 / Math.pow(k, alpha);
         amp *= this.harmonicColor[k];
+
+        if (fa24Mode > 0.0) {
+          if (k <= 3) amp *= 1.0 + boxerLump * (0.95 - 0.2 * k);
+          if (k >= 6) amp *= Math.max(0.45, 1.0 - 0.085 * (k - 5) * fa24Mode);
+        }
+
+        // High-cam adds stronger high-order content above crossover.
+        if (k >= 7) {
+          amp *= 1.0 + 0.55 * vtecBlend;
+        }
 
         // Reduce high harmonics amplitude further to avoid "buzz"
         // Frequencies above 4kHz roll off
@@ -118,6 +150,15 @@ class EngineProcessor extends AudioWorkletProcessor {
 
       // Shift part of smooth harmonics into lumpy low-mid boxer band.
       signal = signal * (1.0 - 0.22 * boxerMode) + boxerRumble * (0.72 * boxerMode);
+      // High-cam lobe texture: slight extra emphasis around 2nd/3rd order at crossover.
+      const camLobe = (0.12 + 0.18 * throttle) * vtecBlend;
+      signal += camLobe * Math.sin(2.0 * this.phase + 0.2);
+      signal += (camLobe * 0.65) * Math.sin(3.0 * this.phase + 0.55);
+
+      // FA24 boxer growl layer: sub/low-mid reinforcement with uneven combustion feel.
+      const boxerSub = fa24Mode * (0.22 + 0.28 * throttle) * Math.sin(0.5 * this.phase + 0.35);
+      const boxerMid = fa24Mode * (0.14 + 0.22 * throttle) * Math.sin(1.5 * this.phase + 1.1 + boxerWobble);
+      signal += boxerSub + boxerMid;
 
       // 3. Intake/Mechanical/Combustion Noise (multi-band)
       const white = (Math.random() * 2.0 - 1.0);
@@ -152,6 +193,13 @@ class EngineProcessor extends AudioWorkletProcessor {
       const boxerNoise = boxerMode * boxerNoiseShape * this.lpfState * (0.45 + 0.95 * throttle);
 
       const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise);
+      const rpmWindow = Math.max(0.0, 1.0 - Math.abs(rpm - 3200.0) / 2600.0);
+      const liftOff = Math.max(0.0, 0.35 - throttle) / 0.35;
+      const boxerBurble = fa24Mode * rpmWindow * liftOff * (0.16 + 0.22 * (white * white));
+
+      const vtecIntakeEdge = vtecBlend * (0.08 + 0.22 * throttle) * (intakeNoise + 0.6 * hpf);
+      const fa24RumbleNoise = fa24Mode * (0.28 + 0.48 * throttle) * this.lpfState;
+      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + vtecIntakeEdge + fa24RumbleNoise + boxerBurble);
       signal += whistle;
       signal += noiseComp;
 
@@ -160,7 +208,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       signal += 0.6 * this.bpfState; 
 
       // 5. Distortion
-      const drive = 0.9 + 2.2 * throttle;
+      const drive = 0.9 + 2.2 * throttle + 0.35 * vtecBlend + 0.28 * fa24Mode;
       signal = Math.tanh(drive * signal);
 
       // Post-filter distortion output to reduce buzzy high-RPM edge
