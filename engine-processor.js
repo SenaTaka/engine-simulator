@@ -25,7 +25,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'ncyl', defaultValue: 4, minValue: 1, maxValue: 12 },
       { name: 'noiseGain', defaultValue: 0.2, minValue: 0, maxValue: 1 },
       { name: 'turboMode', defaultValue: 0, minValue: 0, maxValue: 1 },
-      { name: 'boxerMode', defaultValue: 0, minValue: 0, maxValue: 1 }
+      { name: 'boxerMode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'vtecMode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'fa24Mode', defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
@@ -192,14 +192,13 @@ class EngineProcessor extends AudioWorkletProcessor {
       const boxerNoiseShape = 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(this.phase * 0.5 + 1.25));
       const boxerNoise = boxerMode * boxerNoiseShape * this.lpfState * (0.45 + 0.95 * throttle);
 
-      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise);
       const rpmWindow = Math.max(0.0, 1.0 - Math.abs(rpm - 3200.0) / 2600.0);
       const liftOff = Math.max(0.0, 0.35 - throttle) / 0.35;
       const boxerBurble = fa24Mode * rpmWindow * liftOff * (0.16 + 0.22 * (white * white));
 
       const vtecIntakeEdge = vtecBlend * (0.08 + 0.22 * throttle) * (intakeNoise + 0.6 * hpf);
       const fa24RumbleNoise = fa24Mode * (0.28 + 0.48 * throttle) * this.lpfState;
-      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + vtecIntakeEdge + fa24RumbleNoise + boxerBurble);
+      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise + vtecIntakeEdge + fa24RumbleNoise + boxerBurble);
       signal += whistle;
       signal += noiseComp;
 
