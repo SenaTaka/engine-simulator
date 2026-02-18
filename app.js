@@ -10,6 +10,7 @@ const params = {
   ncyl: 4,
   noiseGain: 0.2,
   idleRpm: 900,
+  enginePreset: 'custom',
   redlineRpm: 7000,
   inertia: 0.95, // Higher is slower response (0-1)
   throttleResponse: 0.1 // How fast throttle moves to target
@@ -27,6 +28,38 @@ const idleRpmInput = document.getElementById('idle-rpm');
 const redlineRpmInput = document.getElementById('redline-rpm');
 const inertiaInput = document.getElementById('inertia');
 const noiseInput = document.getElementById('noise-gain');
+const presetInput = document.getElementById('engine-preset');
+
+const presetProfiles = {
+  na: {
+    ncyl: 4,
+    idleRpm: 850,
+    redlineRpm: 7800,
+    inertia: 0.92,
+    noiseGain: 0.16
+  },
+  turbo: {
+    ncyl: 4,
+    idleRpm: 1000,
+    redlineRpm: 6800,
+    inertia: 0.97,
+    noiseGain: 0.34
+  }
+};
+
+function applyPreset(presetName) {
+  const preset = presetProfiles[presetName];
+  if (!preset) return;
+
+  ncylInput.value = preset.ncyl;
+  idleRpmInput.value = preset.idleRpm;
+  redlineRpmInput.value = preset.redlineRpm;
+  inertiaInput.value = preset.inertia;
+  noiseInput.value = preset.noiseGain;
+
+  params.enginePreset = presetName;
+  updateParamsFromUI();
+}
 
 function updateParamsFromUI() {
   params.ncyl = parseInt(ncylInput.value);
@@ -37,7 +70,22 @@ function updateParamsFromUI() {
 }
 
 [ncylInput, idleRpmInput, redlineRpmInput, inertiaInput, noiseInput].forEach(el => {
-  el.addEventListener('input', updateParamsFromUI);
+  el.addEventListener('input', () => {
+    params.enginePreset = 'custom';
+    presetInput.value = 'custom';
+    updateParamsFromUI();
+  });
+});
+
+presetInput.addEventListener('change', () => {
+  const selectedPreset = presetInput.value;
+  if (selectedPreset === 'custom') {
+    params.enginePreset = 'custom';
+    updateParamsFromUI();
+    return;
+  }
+
+  applyPreset(selectedPreset);
 });
 
 // Animation Loop
@@ -76,12 +124,14 @@ function update() {
     const throttleParam = engineNode.parameters.get('throttle');
     const ncylParam = engineNode.parameters.get('ncyl');
     const noiseGainParam = engineNode.parameters.get('noiseGain');
+    const turboModeParam = engineNode.parameters.get('turboMode');
 
     const now = audioCtx.currentTime;
     rpmParam.setValueAtTime(params.currentRpm, now);
     throttleParam.setValueAtTime(params.currentThrottle, now);
     ncylParam.setValueAtTime(params.ncyl, now);
     noiseGainParam.setValueAtTime(params.noiseGain, now);
+    turboModeParam.setValueAtTime(params.enginePreset === 'turbo' ? 1 : 0, now);
   }
 
   // Update UI
