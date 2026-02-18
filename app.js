@@ -47,10 +47,10 @@ const presetProfiles = {
   },
   fa24: {
     ncyl: 4,
-    idleRpm: 850,
-    redlineRpm: 7400,
-    inertia: 0.96,
-    noiseGain: 0.38
+    idleRpm: 820,
+    redlineRpm: 7600,
+    inertia: 0.965,
+    noiseGain: 0.44
   }
 };
 

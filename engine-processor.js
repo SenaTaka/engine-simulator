@@ -100,19 +100,24 @@ class EngineProcessor extends AudioWorkletProcessor {
         signal += amp * harmonicDamping * Math.sin(k * this.phase + this.phaseOffsets[k]);
       }
 
-      // Subaru FA24-like boxer cadence: emphasize low-order off-beat pulses
-      // to get the characteristic "dorodoro" rumble.
-      const boxerFund = Math.sin(this.phase * 0.5);
-      const boxerOdd = Math.sin(this.phase * 1.5 + 0.9);
-      const unevenWindow = 0.5 + 0.5 * Math.sin(this.phase + 0.35 * Math.sin(this.phase * 0.5));
-      this.boxerPulse = 0.88 * this.boxerPulse + 0.12 * Math.pow(unevenWindow, 2.8);
+      // Subaru FA24-like boxer cadence: create slightly uneven paired pulses
+      // and low-mid "dorodoro" energy instead of smooth harmonic continuity.
+      const pulseA = Math.pow(Math.max(0, Math.sin(this.phase + 0.10)), 7.0);
+      const pulseB = Math.pow(Math.max(0, Math.sin(this.phase + 1.22)), 7.0);
+      const pairedPulse = pulseA + 0.78 * pulseB;
 
-      const boxerLow = 0.52 * boxerFund + 0.28 * boxerOdd;
-      this.boxerRumbleState += 0.035 * (boxerLow - this.boxerRumbleState);
-      const boxerRumble = this.boxerRumbleState * this.boxerPulse;
+      // Slow loping envelope creates the characteristic rolling boxer texture.
+      const loping = 0.55 + 0.45 * Math.sin(this.phase * 0.5 + 0.9);
+      this.boxerPulse = 0.84 * this.boxerPulse + 0.16 * pairedPulse * loping;
 
-      // Shift energy from smooth harmonics into lumpy low-mid band.
-      signal = signal * (1.0 - 0.24 * boxerMode) + boxerRumble * (0.9 * boxerMode);
+      const boxerFund = Math.sin(this.phase * 0.5 + 0.2);
+      const boxerOdd = Math.sin(this.phase * 1.5 + 1.0);
+      const boxerLow = 0.62 * boxerFund + 0.34 * boxerOdd;
+      this.boxerRumbleState += 0.028 * (boxerLow - this.boxerRumbleState);
+      const boxerRumble = (0.58 + 0.42 * this.boxerPulse) * this.boxerRumbleState;
+
+      // Shift part of smooth harmonics into lumpy low-mid boxer band.
+      signal = signal * (1.0 - 0.22 * boxerMode) + boxerRumble * (0.72 * boxerMode);
 
       // 3. Intake/Mechanical/Combustion Noise (multi-band)
       const white = (Math.random() * 2.0 - 1.0);
@@ -142,9 +147,9 @@ class EngineProcessor extends AudioWorkletProcessor {
       this.combPulse = 0.9 * this.combPulse + 0.1 * burst;
       const combustionNoise = this.combPulse * white * (0.2 + 0.9 * throttle);
 
-      // Alternating-bank like roughness in the 100-280Hz area for boxer exhaust note.
-      const boxerNoiseShape = 0.2 + 0.8 * (0.5 + 0.5 * Math.sin(this.phase * 0.5 + 1.1));
-      const boxerNoise = boxerMode * boxerNoiseShape * this.lpfState * (0.5 + 0.75 * throttle);
+      // Alternating-bank roughness in the 100-280Hz area for boxer exhaust note.
+      const boxerNoiseShape = 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(this.phase * 0.5 + 1.25));
+      const boxerNoise = boxerMode * boxerNoiseShape * this.lpfState * (0.45 + 0.95 * throttle);
 
       const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise);
       signal += whistle;
