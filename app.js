@@ -2,6 +2,16 @@ let audioCtx;
 let engineNode = null;
 let isPlaying = false;
 
+// Audio effect nodes
+let compressorNode = null;
+let convolverNode = null;
+let eqLowShelfNode = null;
+let eqMidNode = null;
+let eqHighShelfNode = null;
+let dryGainNode = null;
+let wetGainNode = null;
+let masterGainNode = null;
+
 // Parameters
 const params = {
   currentRpm: 1000,
@@ -13,7 +23,12 @@ const params = {
   enginePreset: 'custom',
   redlineRpm: 7000,
   inertia: 0.95, // Higher is slower response (0-1)
-  throttleResponse: 0.1 // How fast throttle moves to target
+  throttleResponse: 0.1, // How fast throttle moves to target
+  audioPerspective: 'exterior',
+  compressorEnabled: false,
+  compressorAmount: 0.5,
+  reverbEnabled: false,
+  reverbAmount: 0.3
 };
 
 // UI Elements
@@ -29,6 +44,11 @@ const redlineRpmInput = document.getElementById('redline-rpm');
 const inertiaInput = document.getElementById('inertia');
 const noiseInput = document.getElementById('noise-gain');
 const presetInput = document.getElementById('engine-preset');
+const perspectiveInput = document.getElementById('audio-perspective');
+const compressorEnabledInput = document.getElementById('compressor-enabled');
+const compressorAmountInput = document.getElementById('compressor-amount');
+const reverbEnabledInput = document.getElementById('reverb-enabled');
+const reverbAmountInput = document.getElementById('reverb-amount');
 
 const presetProfiles = {
   na: {
@@ -100,6 +120,109 @@ presetInput.addEventListener('change', () => {
   }
 
   applyPreset(selectedPreset);
+});
+
+// EQ Perspective Profiles
+const perspectiveProfiles = {
+  exterior: {
+    lowShelf: { freq: 120, gain: 4 },
+    mid: { freq: 800, gain: -2, Q: 1.0 },
+    highShelf: { freq: 3000, gain: -6 }
+  },
+  interior: {
+    lowShelf: { freq: 80, gain: -3 },
+    mid: { freq: 2500, gain: 3, Q: 0.7 },
+    highShelf: { freq: 6000, gain: -8 }
+  },
+  enginebay: {
+    lowShelf: { freq: 150, gain: 2 },
+    mid: { freq: 1200, gain: 5, Q: 1.5 },
+    highShelf: { freq: 4000, gain: 0 }
+  }
+};
+
+function applyEQPerspective(perspective) {
+  if (!eqLowShelfNode || !eqMidNode || !eqHighShelfNode) return;
+
+  const profile = perspectiveProfiles[perspective];
+  if (!profile) return;
+
+  eqLowShelfNode.frequency.value = profile.lowShelf.freq;
+  eqLowShelfNode.gain.value = profile.lowShelf.gain;
+
+  eqMidNode.frequency.value = profile.mid.freq;
+  eqMidNode.gain.value = profile.mid.gain;
+  eqMidNode.Q.value = profile.mid.Q;
+
+  eqHighShelfNode.frequency.value = profile.highShelf.freq;
+  eqHighShelfNode.gain.value = profile.highShelf.gain;
+}
+
+function updateCompressor() {
+  if (!compressorNode) return;
+
+  if (params.compressorEnabled) {
+    const amount = params.compressorAmount;
+    compressorNode.threshold.value = -24 * amount;
+    compressorNode.knee.value = 30 * amount;
+    compressorNode.ratio.value = 2 + 10 * amount;
+    compressorNode.attack.value = 0.003;
+    compressorNode.release.value = 0.25;
+  }
+}
+
+function updateReverb() {
+  if (!wetGainNode || !dryGainNode) return;
+
+  if (params.reverbEnabled) {
+    wetGainNode.gain.value = params.reverbAmount * 0.6;
+    dryGainNode.gain.value = 1.0 - params.reverbAmount * 0.4;
+  } else {
+    wetGainNode.gain.value = 0;
+    dryGainNode.gain.value = 1.0;
+  }
+}
+
+async function createReverbImpulse(audioContext, duration = 2.0, decay = 2.0) {
+  const sampleRate = audioContext.sampleRate;
+  const length = sampleRate * duration;
+  const impulse = audioContext.createBuffer(2, length, sampleRate);
+  const left = impulse.getChannelData(0);
+  const right = impulse.getChannelData(1);
+
+  for (let i = 0; i < length; i++) {
+    const t = i / sampleRate;
+    const envelope = Math.exp(-t * decay);
+    left[i] = (Math.random() * 2 - 1) * envelope;
+    right[i] = (Math.random() * 2 - 1) * envelope;
+  }
+
+  return impulse;
+}
+
+perspectiveInput.addEventListener('change', () => {
+  params.audioPerspective = perspectiveInput.value;
+  applyEQPerspective(params.audioPerspective);
+});
+
+compressorEnabledInput.addEventListener('change', () => {
+  params.compressorEnabled = compressorEnabledInput.checked;
+  updateCompressor();
+});
+
+compressorAmountInput.addEventListener('input', () => {
+  params.compressorAmount = parseFloat(compressorAmountInput.value);
+  updateCompressor();
+});
+
+reverbEnabledInput.addEventListener('change', () => {
+  params.reverbEnabled = reverbEnabledInput.checked;
+  updateReverb();
+});
+
+reverbAmountInput.addEventListener('input', () => {
+  params.reverbAmount = parseFloat(reverbAmountInput.value);
+  updateReverb();
 });
 
 // Animation Loop
@@ -211,9 +334,62 @@ startButton.addEventListener('click', async () => {
     if (!engineNode) {
       await audioCtx.audioWorklet.addModule('engine-processor.js');
       engineNode = new AudioWorkletNode(audioCtx, 'engine-processor');
-      engineNode.connect(audioCtx.destination);
+
+      // Create effect chain
+      // EQ nodes
+      eqLowShelfNode = audioCtx.createBiquadFilter();
+      eqLowShelfNode.type = 'lowshelf';
+
+      eqMidNode = audioCtx.createBiquadFilter();
+      eqMidNode.type = 'peaking';
+
+      eqHighShelfNode = audioCtx.createBiquadFilter();
+      eqHighShelfNode.type = 'highshelf';
+
+      // Compressor
+      compressorNode = audioCtx.createDynamicsCompressor();
+
+      // Reverb (convolver)
+      convolverNode = audioCtx.createConvolver();
+      const impulse = await createReverbImpulse(audioCtx, 2.0, 2.0);
+      convolverNode.buffer = impulse;
+
+      // Dry/Wet mixing
+      dryGainNode = audioCtx.createGain();
+      wetGainNode = audioCtx.createGain();
+      masterGainNode = audioCtx.createGain();
+
+      dryGainNode.gain.value = 1.0;
+      wetGainNode.gain.value = 0.0;
+      masterGainNode.gain.value = 1.0;
+
+      // Connect the chain:
+      // engineNode -> EQ -> compressor -> dry/wet split
+      // dry path: -> dryGain -> master -> destination
+      // wet path: -> convolver -> wetGain -> master -> destination
+      engineNode.connect(eqLowShelfNode);
+      eqLowShelfNode.connect(eqMidNode);
+      eqMidNode.connect(eqHighShelfNode);
+      eqHighShelfNode.connect(compressorNode);
+
+      // Dry path
+      compressorNode.connect(dryGainNode);
+      dryGainNode.connect(masterGainNode);
+
+      // Wet path (reverb)
+      compressorNode.connect(convolverNode);
+      convolverNode.connect(wetGainNode);
+      wetGainNode.connect(masterGainNode);
+
+      // Master to destination
+      masterGainNode.connect(audioCtx.destination);
+
+      // Apply initial settings
+      applyEQPerspective(params.audioPerspective);
+      updateCompressor();
+      updateReverb();
     }
-    
+
     isPlaying = true;
     startButton.textContent = 'Stop Engine';
     statusText.textContent = 'Running';
