@@ -4,10 +4,13 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.phase = 0;
     this.lpfState = 0;
     this.bpfState = 0;
+    this.postLpfState = 0;
+    this.randomWalk = 0;
     
     // Pre-calculate random phase offsets for each harmonic to break phase coherence
     // This makes it sound less like a synth/organ
     this.phaseOffsets = new Float32Array(32).map(() => Math.random() * 2 * Math.PI);
+    this.harmonicColor = new Float32Array(32).map(() => 0.85 + Math.random() * 0.3);
   }
 
   static get parameterDescriptors() {
@@ -42,10 +45,15 @@ class EngineProcessor extends AudioWorkletProcessor {
       const noiseGain = noiseGainParams.length > 1 ? noiseGainParams[i] : noiseGainParams[0];
 
       // 1. Fundamental Frequency & Jitter
-      const jitterAmount = 0.002 + 0.005 * (1.0 - throttle);
+      const jitterAmount = 0.001 + 0.003 * (1.0 - throttle);
       const jitter = 1.0 + (Math.random() - 0.5) * jitterAmount;
 
-      const f_fire = (rpm / 60.0) * (ncyl / 2.0) * jitter;
+      // Very slow random walk on pitch to emulate tiny cycle-to-cycle combustion variation
+      this.randomWalk += (Math.random() - 0.5) * 0.00015;
+      this.randomWalk *= 0.9995;
+      const drift = 1.0 + this.randomWalk;
+
+      const f_fire = (rpm / 60.0) * (ncyl / 2.0) * jitter * drift;
       const phaseInc = (2.0 * Math.PI * f_fire) / sampleRate;
       
       this.phase += phaseInc;
@@ -54,7 +62,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       }
 
       // 2. Harmonic Synthesis (Anti-aliased)
-      const alpha = 1.3 - 0.9 * throttle;
+      const alpha = 1.35 - 0.85 * throttle;
+      const harmonicDamping = Math.max(0.45, 1.0 - (rpm / 12000.0) * 0.5);
       
       let signal = 0;
       
@@ -66,6 +75,7 @@ class EngineProcessor extends AudioWorkletProcessor {
 
         // Amplitude decay
         let amp = 1.0 / Math.pow(k, alpha);
+        amp *= this.harmonicColor[k];
 
         // Reduce high harmonics amplitude further to avoid "buzz"
         // Frequencies above 4kHz roll off
@@ -76,7 +86,7 @@ class EngineProcessor extends AudioWorkletProcessor {
         // Use pre-calculated phase offset for organic sound
         // k * this.phase aligns them perfectly (sawtooth-like) -> electronic sound
         // Adding offset breaks this perfect alignment
-        signal += amp * Math.sin(k * this.phase + this.phaseOffsets[k]);
+        signal += amp * harmonicDamping * Math.sin(k * this.phase + this.phaseOffsets[k]);
       }
 
       // 3. Intake/Mechanical Noise
@@ -91,8 +101,13 @@ class EngineProcessor extends AudioWorkletProcessor {
       signal += 0.6 * this.bpfState; 
 
       // 5. Distortion
-      const drive = 1.0 + 3.0 * throttle;
+      const drive = 0.9 + 2.2 * throttle;
       signal = Math.tanh(drive * signal);
+
+      // Post-filter distortion output to reduce buzzy high-RPM edge
+      const postLpfAlpha = 0.12 + 0.10 * throttle;
+      this.postLpfState += postLpfAlpha * (signal - this.postLpfState);
+      signal = 0.82 * this.postLpfState + 0.18 * signal;
 
       // Volume scaling
       signal *= 0.35;
