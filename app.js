@@ -44,6 +44,13 @@ const presetProfiles = {
     redlineRpm: 6800,
     inertia: 0.97,
     noiseGain: 0.34
+  },
+  vtec: {
+    ncyl: 4,
+    idleRpm: 900,
+    redlineRpm: 8600,
+    inertia: 0.9,
+    noiseGain: 0.22
   }
 };
 
