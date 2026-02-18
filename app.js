@@ -8,7 +8,7 @@ const params = {
   currentThrottle: 0.0,
   targetThrottle: 0.0,
   ncyl: 4,
-  noiseGain: 0.1,
+  noiseGain: 0.2,
   idleRpm: 900,
   redlineRpm: 7000,
   inertia: 0.95, // Higher is slower response (0-1)
