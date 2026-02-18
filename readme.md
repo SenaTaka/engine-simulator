@@ -21,6 +21,8 @@
   - レッドライン（Redline RPM）
   - 慣性（Inertia）
   - ノイズ量（Noise）
+- エンジンプリセット（NA / Turbo / VTEC）
+  - VTEC は約5600rpm付近で高カム側に遷移する音色設計
 
 ## 使い方
 

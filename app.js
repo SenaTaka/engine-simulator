@@ -132,6 +132,7 @@ function update() {
     const ncylParam = engineNode.parameters.get('ncyl');
     const noiseGainParam = engineNode.parameters.get('noiseGain');
     const turboModeParam = engineNode.parameters.get('turboMode');
+    const vtecModeParam = engineNode.parameters.get('vtecMode');
 
     const now = audioCtx.currentTime;
     rpmParam.setValueAtTime(params.currentRpm, now);
@@ -139,6 +140,7 @@ function update() {
     ncylParam.setValueAtTime(params.ncyl, now);
     noiseGainParam.setValueAtTime(params.noiseGain, now);
     turboModeParam.setValueAtTime(params.enginePreset === 'turbo' ? 1 : 0, now);
+    vtecModeParam.setValueAtTime(params.enginePreset === 'vtec' ? 1 : 0, now);
   }
 
   // Update UI
