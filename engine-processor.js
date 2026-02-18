@@ -9,6 +9,8 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.randomWalk = 0;
     this.combPulse = 0;
     this.turboPhase = 0;
+    this.boxerPulse = 0;
+    this.boxerRumbleState = 0;
     
     // Pre-calculate random phase offsets for each harmonic to break phase coherence
     // This makes it sound less like a synth/organ
@@ -22,7 +24,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'throttle', defaultValue: 0.15, minValue: 0, maxValue: 1 },
       { name: 'ncyl', defaultValue: 4, minValue: 1, maxValue: 12 },
       { name: 'noiseGain', defaultValue: 0.2, minValue: 0, maxValue: 1 },
-      { name: 'turboMode', defaultValue: 0, minValue: 0, maxValue: 1 }
+      { name: 'turboMode', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'boxerMode', defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
   }
 
@@ -37,6 +40,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     const ncylParams = parameters.ncyl;
     const noiseGainParams = parameters.noiseGain;
     const turboModeParams = parameters.turboMode;
+    const boxerModeParams = parameters.boxerMode;
     
     // Constant for harmonic count
     const n_harm = 24;
@@ -49,6 +53,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       const ncyl = ncylParams.length > 1 ? ncylParams[i] : ncylParams[0];
       const noiseGain = noiseGainParams.length > 1 ? noiseGainParams[i] : noiseGainParams[0];
       const turboMode = turboModeParams.length > 1 ? turboModeParams[i] : turboModeParams[0];
+      const boxerMode = boxerModeParams.length > 1 ? boxerModeParams[i] : boxerModeParams[0];
 
       // 1. Fundamental Frequency & Jitter
       const jitterAmount = 0.001 + 0.003 * (1.0 - throttle);
@@ -95,6 +100,20 @@ class EngineProcessor extends AudioWorkletProcessor {
         signal += amp * harmonicDamping * Math.sin(k * this.phase + this.phaseOffsets[k]);
       }
 
+      // Subaru FA24-like boxer cadence: emphasize low-order off-beat pulses
+      // to get the characteristic "dorodoro" rumble.
+      const boxerFund = Math.sin(this.phase * 0.5);
+      const boxerOdd = Math.sin(this.phase * 1.5 + 0.9);
+      const unevenWindow = 0.5 + 0.5 * Math.sin(this.phase + 0.35 * Math.sin(this.phase * 0.5));
+      this.boxerPulse = 0.88 * this.boxerPulse + 0.12 * Math.pow(unevenWindow, 2.8);
+
+      const boxerLow = 0.52 * boxerFund + 0.28 * boxerOdd;
+      this.boxerRumbleState += 0.035 * (boxerLow - this.boxerRumbleState);
+      const boxerRumble = this.boxerRumbleState * this.boxerPulse;
+
+      // Shift energy from smooth harmonics into lumpy low-mid band.
+      signal = signal * (1.0 - 0.24 * boxerMode) + boxerRumble * (0.9 * boxerMode);
+
       // 3. Intake/Mechanical/Combustion Noise (multi-band)
       const white = (Math.random() * 2.0 - 1.0);
 
@@ -123,7 +142,11 @@ class EngineProcessor extends AudioWorkletProcessor {
       this.combPulse = 0.9 * this.combPulse + 0.1 * burst;
       const combustionNoise = this.combPulse * white * (0.2 + 0.9 * throttle);
 
-      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh);
+      // Alternating-bank like roughness in the 100-280Hz area for boxer exhaust note.
+      const boxerNoiseShape = 0.2 + 0.8 * (0.5 + 0.5 * Math.sin(this.phase * 0.5 + 1.1));
+      const boxerNoise = boxerMode * boxerNoiseShape * this.lpfState * (0.5 + 0.75 * throttle);
+
+      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise);
       signal += whistle;
       signal += noiseComp;
 

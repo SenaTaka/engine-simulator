@@ -44,6 +44,13 @@ const presetProfiles = {
     redlineRpm: 6800,
     inertia: 0.97,
     noiseGain: 0.34
+  },
+  fa24: {
+    ncyl: 4,
+    idleRpm: 850,
+    redlineRpm: 7400,
+    inertia: 0.96,
+    noiseGain: 0.38
   }
 };
 
@@ -125,6 +132,7 @@ function update() {
     const ncylParam = engineNode.parameters.get('ncyl');
     const noiseGainParam = engineNode.parameters.get('noiseGain');
     const turboModeParam = engineNode.parameters.get('turboMode');
+    const boxerModeParam = engineNode.parameters.get('boxerMode');
 
     const now = audioCtx.currentTime;
     rpmParam.setValueAtTime(params.currentRpm, now);
@@ -132,6 +140,7 @@ function update() {
     ncylParam.setValueAtTime(params.ncyl, now);
     noiseGainParam.setValueAtTime(params.noiseGain, now);
     turboModeParam.setValueAtTime(params.enginePreset === 'turbo' ? 1 : 0, now);
+    boxerModeParam.setValueAtTime(params.enginePreset === 'fa24' ? 1 : 0, now);
   }
 
   // Update UI
