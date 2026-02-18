@@ -11,11 +11,31 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.turboPhase = 0;
     this.boxerPulse = 0;
     this.boxerRumbleState = 0;
-    
+
     // Pre-calculate random phase offsets for each harmonic to break phase coherence
     // This makes it sound less like a synth/organ
     this.phaseOffsets = new Float32Array(32).map(() => Math.random() * 2 * Math.PI);
     this.harmonicColor = new Float32Array(32).map(() => 0.85 + Math.random() * 0.3);
+
+    // Cylinder-to-cylinder variation for more organic combustion
+    this.cylinderPhaseOffsets = new Float32Array(12).map(() => Math.random() * 0.08 - 0.04);
+    this.cylinderAmplitudes = new Float32Array(12).map(() => 0.92 + Math.random() * 0.16);
+
+    // Exhaust resonance states (formant-like filtering)
+    this.exhaustRes1State = 0;
+    this.exhaustRes2State = 0;
+    this.exhaustRes3State = 0;
+
+    // Deceleration/backfire state
+    this.backfirePulse = 0;
+    this.lastThrottle = 0;
+
+    // Valvetrain noise state
+    this.valveClickPhase = 0;
+
+    // Rev limiter state
+    this.revLimiterCycle = 0;
+    this.revLimiterActive = false;
   }
 
   static get parameterDescriptors() {
@@ -27,7 +47,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'turboMode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'boxerMode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'vtecMode', defaultValue: 0, minValue: 0, maxValue: 1 },
-      { name: 'fa24Mode', defaultValue: 0, minValue: 0, maxValue: 1 }
+      { name: 'fa24Mode', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'redlineRpm', defaultValue: 7000, minValue: 3000, maxValue: 12000 }
     ];
   }
 
@@ -45,6 +66,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     const boxerModeParams = parameters.boxerMode;
     const vtecModeParams = parameters.vtecMode;
     const fa24ModeParams = parameters.fa24Mode;
+    const redlineRpmParams = parameters.redlineRpm;
     
     // Constant for harmonic count
     const n_harm = 24;
@@ -60,6 +82,20 @@ class EngineProcessor extends AudioWorkletProcessor {
       const boxerMode = boxerModeParams.length > 1 ? boxerModeParams[i] : boxerModeParams[0];
       const vtecMode = vtecModeParams.length > 1 ? vtecModeParams[i] : vtecModeParams[0];
       const fa24Mode = fa24ModeParams.length > 1 ? fa24ModeParams[i] : fa24ModeParams[0];
+      const redlineRpm = redlineRpmParams.length > 1 ? redlineRpmParams[i] : redlineRpmParams[0];
+
+      // Rev limiter simulation: fuel cut at redline
+      let revLimiterCut = 1.0;
+      if (rpm > redlineRpm * 0.98) {
+        this.revLimiterCycle += 0.15;
+        if (this.revLimiterCycle > 1.0) this.revLimiterCycle = 0;
+        this.revLimiterActive = true;
+        // Hard cut creates distinctive bouncing on/off pattern
+        revLimiterCut = this.revLimiterCycle < 0.3 ? 0.05 : 1.0;
+      } else {
+        this.revLimiterActive = false;
+        this.revLimiterCycle = 0;
+      }
 
       // 1. Fundamental Frequency & Jitter
       const jitterAmount = 0.001 + 0.003 * (1.0 - throttle);
@@ -99,7 +135,19 @@ class EngineProcessor extends AudioWorkletProcessor {
       // FA24: emphasize low-order boxer pulse with slight off-beat wobble.
       const boxerLump = fa24Mode * (0.55 + 0.45 * throttle);
       const boxerWobble = fa24Mode * (0.01 + 0.02 * throttle) * Math.sin(0.5 * this.phase + 0.9);
-      
+
+      // Cylinder-to-cylinder variation: each cylinder fires with slightly different timing/amplitude
+      const cylPerRev = ncyl / 2.0;
+      const firingInterval = (2.0 * Math.PI) / cylPerRev;
+      let cylinderContribution = 0;
+
+      for (let cyl = 0; cyl < Math.min(ncyl, 12); cyl++) {
+        const cylPhase = this.phase + cyl * firingInterval + this.cylinderPhaseOffsets[cyl];
+        const cylAmp = this.cylinderAmplitudes[cyl];
+        const cylPulse = Math.pow(Math.max(0, Math.sin(cylPhase)), 5.0);
+        cylinderContribution += cylAmp * cylPulse * 0.15;
+      }
+
       for (let k = 1; k <= n_harm; k++) {
         const freq = k * f_fire;
 
@@ -131,6 +179,9 @@ class EngineProcessor extends AudioWorkletProcessor {
         // Adding offset breaks this perfect alignment
         signal += amp * harmonicDamping * Math.sin(k * this.phase + this.phaseOffsets[k]);
       }
+
+      // Add cylinder-to-cylinder variation contribution
+      signal += cylinderContribution * (0.8 + 0.2 * throttle);
 
       // Subaru FA24-like boxer cadence: create slightly uneven paired pulses
       // and low-mid "dorodoro" energy instead of smooth harmonic continuity.
@@ -198,13 +249,51 @@ class EngineProcessor extends AudioWorkletProcessor {
 
       const vtecIntakeEdge = vtecBlend * (0.08 + 0.22 * throttle) * (intakeNoise + 0.6 * hpf);
       const fa24RumbleNoise = fa24Mode * (0.28 + 0.48 * throttle) * this.lpfState;
-      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise + vtecIntakeEdge + fa24RumbleNoise + boxerBurble);
+
+      // Valvetrain mechanical noise: distinct clicks at valve events
+      const valveFreq = f_fire * 2.0; // Twice per revolution (intake + exhaust)
+      this.valveClickPhase += (2.0 * Math.PI * valveFreq) / sampleRate;
+      if (this.valveClickPhase > 2.0 * Math.PI) this.valveClickPhase -= 2.0 * Math.PI;
+      const valveClickEnvelope = Math.pow(Math.max(0, Math.sin(this.valveClickPhase)), 12.0);
+      const valveClick = valveClickEnvelope * hpf * (0.08 + 0.12 * (rpm / 8000.0));
+
+      // Deceleration backfire: detect throttle lift and create popping
+      const throttleDrop = Math.max(0, this.lastThrottle - throttle);
+      this.lastThrottle = throttle;
+      const decelWindow = Math.max(0.0, 1.0 - Math.abs(rpm - 4500.0) / 3500.0);
+      const backfireTrigger = throttleDrop > 0.3 ? Math.random() : 0;
+      this.backfirePulse = Math.max(this.backfirePulse * 0.94, backfireTrigger * decelWindow);
+      const backfireNoise = this.backfirePulse * white * white * (0.35 + 0.65 * this.lpfState);
+
+      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise + vtecIntakeEdge + fa24RumbleNoise + boxerBurble + valveClick + backfireNoise);
       signal += whistle;
       signal += noiseComp;
 
       // 4. Body Resonance
       this.bpfState += 0.02 * (signal - this.bpfState);
-      signal += 0.6 * this.bpfState; 
+      signal += 0.6 * this.bpfState;
+
+      // 4b. Exhaust Resonance (Formant-like filtering)
+      // Three resonant peaks simulate exhaust pipe length and chamber resonances
+      // These shift slightly with RPM to mimic real exhaust behavior
+      const exhaustRes1Freq = 180 + rpm * 0.02; // Low-mid resonance
+      const exhaustRes2Freq = 650 + rpm * 0.04; // Mid resonance
+      const exhaustRes3Freq = 1800 + rpm * 0.08; // High-mid resonance
+
+      // Simple resonant filters (2-pole approximation)
+      const res1Alpha = Math.min(0.45, (2.0 * Math.PI * exhaustRes1Freq) / sampleRate);
+      const res2Alpha = Math.min(0.35, (2.0 * Math.PI * exhaustRes2Freq) / sampleRate);
+      const res3Alpha = Math.min(0.25, (2.0 * Math.PI * exhaustRes3Freq) / sampleRate);
+
+      this.exhaustRes1State += res1Alpha * (signal - this.exhaustRes1State);
+      this.exhaustRes2State += res2Alpha * (signal - this.exhaustRes2State);
+      this.exhaustRes3State += res3Alpha * (signal - this.exhaustRes3State);
+
+      const exhaustResonance = 0.28 * this.exhaustRes1State + 0.22 * this.exhaustRes2State + 0.15 * this.exhaustRes3State;
+      signal += exhaustResonance * (0.5 + 0.5 * throttle);
+
+      // Apply rev limiter cut (simulates fuel cut)
+      signal *= revLimiterCut; 
 
       // 5. Distortion
       const drive = 0.9 + 2.2 * throttle + 0.35 * vtecBlend + 0.28 * fa24Mode;

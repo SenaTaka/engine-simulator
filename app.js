@@ -142,6 +142,7 @@ function update() {
     const boxerModeParam = engineNode.parameters.get('boxerMode');
     const vtecModeParam = engineNode.parameters.get('vtecMode');
     const fa24ModeParam = engineNode.parameters.get('fa24Mode');
+    const redlineRpmParam = engineNode.parameters.get('redlineRpm');
 
     const now = audioCtx.currentTime;
     rpmParam.setValueAtTime(params.currentRpm, now);
@@ -152,6 +153,7 @@ function update() {
     boxerModeParam.setValueAtTime(params.enginePreset === 'fa24' ? 1 : 0, now);
     vtecModeParam.setValueAtTime(params.enginePreset === 'vtec' ? 1 : 0, now);
     fa24ModeParam.setValueAtTime(params.enginePreset === 'fa24' ? 1 : 0, now);
+    redlineRpmParam.setValueAtTime(params.redlineRpm, now);
   }
 
   // Update UI
