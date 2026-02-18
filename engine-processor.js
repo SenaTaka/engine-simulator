@@ -22,7 +22,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'throttle', defaultValue: 0.15, minValue: 0, maxValue: 1 },
       { name: 'ncyl', defaultValue: 4, minValue: 1, maxValue: 12 },
       { name: 'noiseGain', defaultValue: 0.2, minValue: 0, maxValue: 1 },
-      { name: 'turboMode', defaultValue: 0, minValue: 0, maxValue: 1 }
+      { name: 'turboMode', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'vtecMode', defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
   }
 
@@ -37,6 +38,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     const ncylParams = parameters.ncyl;
     const noiseGainParams = parameters.noiseGain;
     const turboModeParams = parameters.turboMode;
+    const vtecModeParams = parameters.vtecMode;
     
     // Constant for harmonic count
     const n_harm = 24;
@@ -49,6 +51,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       const ncyl = ncylParams.length > 1 ? ncylParams[i] : ncylParams[0];
       const noiseGain = noiseGainParams.length > 1 ? noiseGainParams[i] : noiseGainParams[0];
       const turboMode = turboModeParams.length > 1 ? turboModeParams[i] : turboModeParams[0];
+      const vtecMode = vtecModeParams.length > 1 ? vtecModeParams[i] : vtecModeParams[0];
 
       // 1. Fundamental Frequency & Jitter
       const jitterAmount = 0.001 + 0.003 * (1.0 - throttle);
@@ -68,20 +71,37 @@ class EngineProcessor extends AudioWorkletProcessor {
       }
 
       // 2. Harmonic Synthesis (Anti-aliased)
-      const alpha = 1.35 - 0.85 * throttle;
-      const harmonicDamping = Math.max(0.45, 1.0 - (rpm / 12000.0) * 0.5);
-      
+      // VTEC profile: blend from low-cam tone to high-cam tone around crossover RPM.
+      const crossoverCenter = 5600.0;
+      const crossoverWidth = 900.0;
+      const x = (rpm - (crossoverCenter - crossoverWidth * 0.5)) / crossoverWidth;
+      const vtecBlendRaw = Math.min(1.0, Math.max(0.0, x));
+      const vtecBlend = vtecMode * (vtecBlendRaw * vtecBlendRaw * (3.0 - 2.0 * vtecBlendRaw));
+
+      const alphaLowCam = 1.35 - 0.85 * throttle;
+      const alphaHighCam = 1.00 - 0.55 * throttle;
+      const alpha = alphaLowCam + (alphaHighCam - alphaLowCam) * vtecBlend;
+
+      const dampingLowCam = Math.max(0.45, 1.0 - (rpm / 12000.0) * 0.5);
+      const dampingHighCam = Math.max(0.35, 1.08 - (rpm / 12000.0) * 0.38);
+      const harmonicDamping = dampingLowCam + (dampingHighCam - dampingLowCam) * vtecBlend;
+
       let signal = 0;
       
       for (let k = 1; k <= n_harm; k++) {
         const freq = k * f_fire;
-        
+
         // Anti-aliasing: Skip harmonics above Nyquist frequency
         if (freq >= nyquist) break;
 
         // Amplitude decay
         let amp = 1.0 / Math.pow(k, alpha);
         amp *= this.harmonicColor[k];
+
+        // High-cam adds stronger high-order content above crossover.
+        if (k >= 7) {
+          amp *= 1.0 + 0.55 * vtecBlend;
+        }
 
         // Reduce high harmonics amplitude further to avoid "buzz"
         // Frequencies above 4kHz roll off
@@ -94,6 +114,11 @@ class EngineProcessor extends AudioWorkletProcessor {
         // Adding offset breaks this perfect alignment
         signal += amp * harmonicDamping * Math.sin(k * this.phase + this.phaseOffsets[k]);
       }
+
+      // High-cam lobe texture: slight extra emphasis around 2nd/3rd order at crossover.
+      const camLobe = (0.12 + 0.18 * throttle) * vtecBlend;
+      signal += camLobe * Math.sin(2.0 * this.phase + 0.2);
+      signal += (camLobe * 0.65) * Math.sin(3.0 * this.phase + 0.55);
 
       // 3. Intake/Mechanical/Combustion Noise (multi-band)
       const white = (Math.random() * 2.0 - 1.0);
@@ -123,7 +148,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       this.combPulse = 0.9 * this.combPulse + 0.1 * burst;
       const combustionNoise = this.combPulse * white * (0.2 + 0.9 * throttle);
 
-      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh);
+      const vtecIntakeEdge = vtecBlend * (0.08 + 0.22 * throttle) * (intakeNoise + 0.6 * hpf);
+      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + vtecIntakeEdge);
       signal += whistle;
       signal += noiseComp;
 
@@ -132,7 +158,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       signal += 0.6 * this.bpfState; 
 
       // 5. Distortion
-      const drive = 0.9 + 2.2 * throttle;
+      const drive = 0.9 + 2.2 * throttle + 0.35 * vtecBlend;
       signal = Math.tanh(drive * signal);
 
       // Post-filter distortion output to reduce buzzy high-RPM edge
