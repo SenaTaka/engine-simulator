@@ -33,6 +33,21 @@ h1 { margin-top: 0; }
   font-weight: bold;
   color: #00ff88;
   font-variant-numeric: tabular-nums;
+  position: relative;
+}
+
+.rpm-gauge.warning {
+  color: #ffcc00;
+}
+
+.rpm-gauge.danger {
+  color: #ff0055;
+  animation: pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .unit {
@@ -100,4 +115,64 @@ input[type="number"] {
 
 input[type="range"] {
     width: 60%;
+}
+
+/* Visual feedback for disabled state */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Focus styles for accessibility */
+button:focus,
+input:focus,
+select:focus {
+  outline: 2px solid #00ff88;
+  outline-offset: 2px;
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+  .container {
+    padding: 1rem;
+    width: 95%;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .rpm-gauge {
+    font-size: 3rem;
+  }
+
+  .control-group {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .control-group label {
+    width: 100%;
+  }
+
+  input[type="range"] {
+    width: 100%;
+  }
+
+  input[type="number"],
+  select {
+    width: 100%;
+  }
+
+  .controls button {
+    width: 100%;
+    margin: 5px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .throttle-fill {
+    transition: none;
+  }
 }

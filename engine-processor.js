@@ -1,3 +1,15 @@
+/**
+ * EngineProcessor - AudioWorklet processor for real-time engine sound synthesis
+ *
+ * This processor synthesizes realistic engine sounds using:
+ * - Harmonic synthesis with anti-aliasing
+ * - Cylinder-to-cylinder variation
+ * - Multi-band noise generation (intake, mechanical, combustion)
+ * - Exhaust resonance modeling
+ * - Engine-specific characteristics (VTEC, Turbo, Boxer)
+ * - Rev limiter simulation
+ * - Deceleration backfire effects
+ */
 class EngineProcessor extends AudioWorkletProcessor {
   constructor() {
     super();

@@ -1,3 +1,9 @@
+/**
+ * Engine Simulator - Real-time engine sound synthesis application
+ * Uses Web Audio API's AudioWorklet for realistic engine sound generation
+ */
+
+// Audio context and nodes
 let audioCtx;
 let engineNode = null;
 let isPlaying = false;
@@ -13,6 +19,25 @@ let wetGainNode = null;
 let masterGainNode = null;
 
 // Parameters
+/**
+ * Engine simulation parameters
+ * @typedef {Object} EngineParams
+ * @property {number} currentRpm - Current engine RPM
+ * @property {number} currentThrottle - Current throttle position (0-1)
+ * @property {number} targetThrottle - Target throttle position (0-1)
+ * @property {number} ncyl - Number of cylinders
+ * @property {number} noiseGain - Noise level (0-1)
+ * @property {number} idleRpm - Idle RPM value
+ * @property {string} enginePreset - Selected engine preset name
+ * @property {number} redlineRpm - Redline RPM value
+ * @property {number} inertia - Engine inertia factor (0-1, higher = slower response)
+ * @property {number} throttleResponse - Throttle response speed
+ * @property {string} audioPerspective - Audio perspective (exterior/interior/enginebay)
+ * @property {boolean} compressorEnabled - Compressor effect enabled
+ * @property {number} compressorAmount - Compressor effect amount (0-1)
+ * @property {boolean} reverbEnabled - Reverb effect enabled
+ * @property {number} reverbAmount - Reverb effect amount (0-1)
+ */
 const params = {
   currentRpm: 1000,
   currentThrottle: 0.0,
@@ -50,6 +75,10 @@ const compressorAmountInput = document.getElementById('compressor-amount');
 const reverbEnabledInput = document.getElementById('reverb-enabled');
 const reverbAmountInput = document.getElementById('reverb-amount');
 
+/**
+ * Engine preset profiles with predefined parameters
+ * @type {Object.<string, {ncyl: number, idleRpm: number, redlineRpm: number, inertia: number, noiseGain: number}>}
+ */
 const presetProfiles = {
   na: {
     ncyl: 4,
@@ -81,6 +110,10 @@ const presetProfiles = {
   }
 };
 
+/**
+ * Apply a predefined engine preset
+ * @param {string} presetName - Name of the preset to apply
+ */
 function applyPreset(presetName) {
   const preset = presetProfiles[presetName];
   if (!preset) return;
@@ -95,12 +128,22 @@ function applyPreset(presetName) {
   updateParamsFromUI();
 }
 
+/**
+ * Update engine parameters from UI input values
+ */
 function updateParamsFromUI() {
-  params.ncyl = parseInt(ncylInput.value);
-  params.idleRpm = parseInt(idleRpmInput.value);
-  params.redlineRpm = parseInt(redlineRpmInput.value);
-  params.inertia = parseFloat(inertiaInput.value);
-  params.noiseGain = parseFloat(noiseInput.value);
+  // Validate and constrain input values
+  params.ncyl = Math.max(1, Math.min(12, parseInt(ncylInput.value) || 4));
+  params.idleRpm = Math.max(500, Math.min(2000, parseInt(idleRpmInput.value) || 900));
+  params.redlineRpm = Math.max(3000, Math.min(12000, parseInt(redlineRpmInput.value) || 7000));
+  params.inertia = Math.max(0.8, Math.min(0.99, parseFloat(inertiaInput.value) || 0.95));
+  params.noiseGain = Math.max(0, Math.min(1, parseFloat(noiseInput.value) || 0.2));
+
+  // Ensure redline is higher than idle
+  if (params.redlineRpm <= params.idleRpm) {
+    params.redlineRpm = params.idleRpm + 1000;
+    redlineRpmInput.value = params.redlineRpm;
+  }
 }
 
 [ncylInput, idleRpmInput, redlineRpmInput, inertiaInput, noiseInput].forEach(el => {
@@ -122,7 +165,10 @@ presetInput.addEventListener('change', () => {
   applyPreset(selectedPreset);
 });
 
-// EQ Perspective Profiles
+/**
+ * EQ perspective profiles for different audio listening positions
+ * @type {Object.<string, {lowShelf: Object, mid: Object, highShelf: Object}>}
+ */
 const perspectiveProfiles = {
   exterior: {
     lowShelf: { freq: 120, gain: 4 },
@@ -141,6 +187,10 @@ const perspectiveProfiles = {
   }
 };
 
+/**
+ * Apply EQ settings based on audio perspective
+ * @param {string} perspective - Audio perspective (exterior/interior/enginebay)
+ */
 function applyEQPerspective(perspective) {
   if (!eqLowShelfNode || !eqMidNode || !eqHighShelfNode) return;
 
@@ -158,6 +208,9 @@ function applyEQPerspective(perspective) {
   eqHighShelfNode.gain.value = profile.highShelf.gain;
 }
 
+/**
+ * Update compressor effect settings
+ */
 function updateCompressor() {
   if (!compressorNode) return;
 
@@ -171,6 +224,9 @@ function updateCompressor() {
   }
 }
 
+/**
+ * Update reverb effect settings (dry/wet mix)
+ */
 function updateReverb() {
   if (!wetGainNode || !dryGainNode) return;
 
@@ -183,6 +239,13 @@ function updateReverb() {
   }
 }
 
+/**
+ * Create a reverb impulse response buffer
+ * @param {AudioContext} audioContext - The audio context
+ * @param {number} duration - Duration in seconds
+ * @param {number} decay - Decay rate
+ * @returns {Promise<AudioBuffer>} The created impulse response buffer
+ */
 async function createReverbImpulse(audioContext, duration = 2.0, decay = 2.0) {
   const sampleRate = audioContext.sampleRate;
   const length = sampleRate * duration;
@@ -225,7 +288,9 @@ reverbAmountInput.addEventListener('input', () => {
   updateReverb();
 });
 
-// Animation Loop
+/**
+ * Main animation loop - updates throttle, RPM, and UI
+ */
 function update() {
   if (!isPlaying) return;
 
@@ -283,12 +348,33 @@ function update() {
   rpmDisplay.textContent = Math.round(params.currentRpm);
   throttleFill.style.width = `${params.currentThrottle * 100}%`;
 
+  // Update RPM gauge color based on proximity to redline
+  const rpmGaugeElement = rpmDisplay.parentElement;
+  const rpmRatio = params.currentRpm / params.redlineRpm;
+
+  rpmGaugeElement.classList.remove('warning', 'danger');
+  if (rpmRatio >= 0.95) {
+    rpmGaugeElement.classList.add('danger');
+  } else if (rpmRatio >= 0.85) {
+    rpmGaugeElement.classList.add('warning');
+  }
+
+  // Update throttle meter aria-valuenow for accessibility
+  const throttleBar = document.querySelector('.throttle-bar');
+  if (throttleBar) {
+    throttleBar.setAttribute('aria-valuenow', Math.round(params.currentThrottle * 100));
+  }
+
   requestAnimationFrame(update);
 }
 
-// Input Handling
+/**
+ * Set the target throttle position
+ * @param {number} val - Throttle value (0-1)
+ */
 const setThrottle = (val) => {
-  params.targetThrottle = val;
+  // Validate and constrain throttle value
+  params.targetThrottle = Math.max(0, Math.min(1, val));
 };
 
 window.addEventListener('keydown', (e) => {
@@ -314,23 +400,26 @@ if(pedal) {
 
 // Start Audio
 startButton.addEventListener('click', async () => {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-
-  if (isPlaying) {
-    await audioCtx.suspend();
-    isPlaying = false;
-    startButton.textContent = 'Start Engine';
-    statusText.textContent = 'Engine Stopped';
-    return;
-  }
-
-  if (audioCtx.state === 'suspended') {
-    await audioCtx.resume();
-  }
-
   try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    if (isPlaying) {
+      await audioCtx.suspend();
+      isPlaying = false;
+      startButton.textContent = 'Start Engine';
+      statusText.textContent = 'Engine Stopped';
+      return;
+    }
+
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
+
+    // Show loading status
+    statusText.textContent = 'Loading...';
+    startButton.disabled = true;
     if (!engineNode) {
       await audioCtx.audioWorklet.addModule('engine-processor.js');
       engineNode = new AudioWorkletNode(audioCtx, 'engine-processor');
@@ -393,12 +482,90 @@ startButton.addEventListener('click', async () => {
     isPlaying = true;
     startButton.textContent = 'Stop Engine';
     statusText.textContent = 'Running';
+    startButton.disabled = false;
     update();
   } catch (e) {
-    console.error(e);
+    console.error('Error starting engine:', e);
     statusText.textContent = 'Error: ' + e.message;
+    startButton.disabled = false;
+    isPlaying = false;
   }
 });
 
 // Initialize inputs
 updateParamsFromUI();
+
+/**
+ * Save current settings to localStorage
+ */
+function saveSettings() {
+  try {
+    const settings = {
+      ncyl: params.ncyl,
+      idleRpm: params.idleRpm,
+      redlineRpm: params.redlineRpm,
+      inertia: params.inertia,
+      noiseGain: params.noiseGain,
+      enginePreset: params.enginePreset,
+      audioPerspective: params.audioPerspective,
+      compressorEnabled: params.compressorEnabled,
+      compressorAmount: params.compressorAmount,
+      reverbEnabled: params.reverbEnabled,
+      reverbAmount: params.reverbAmount
+    };
+    localStorage.setItem('engineSimulatorSettings', JSON.stringify(settings));
+  } catch (e) {
+    console.warn('Failed to save settings:', e);
+  }
+}
+
+/**
+ * Load settings from localStorage
+ */
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem('engineSimulatorSettings');
+    if (!saved) return;
+
+    const settings = JSON.parse(saved);
+
+    // Apply saved settings to inputs
+    if (settings.ncyl !== undefined) ncylInput.value = settings.ncyl;
+    if (settings.idleRpm !== undefined) idleRpmInput.value = settings.idleRpm;
+    if (settings.redlineRpm !== undefined) redlineRpmInput.value = settings.redlineRpm;
+    if (settings.inertia !== undefined) inertiaInput.value = settings.inertia;
+    if (settings.noiseGain !== undefined) noiseInput.value = settings.noiseGain;
+    if (settings.enginePreset !== undefined) presetInput.value = settings.enginePreset;
+    if (settings.audioPerspective !== undefined) perspectiveInput.value = settings.audioPerspective;
+    if (settings.compressorEnabled !== undefined) compressorEnabledInput.checked = settings.compressorEnabled;
+    if (settings.compressorAmount !== undefined) compressorAmountInput.value = settings.compressorAmount;
+    if (settings.reverbEnabled !== undefined) reverbEnabledInput.checked = settings.reverbEnabled;
+    if (settings.reverbAmount !== undefined) reverbAmountInput.value = settings.reverbAmount;
+
+    // Update params from loaded inputs
+    params.enginePreset = settings.enginePreset || 'custom';
+    params.audioPerspective = settings.audioPerspective || 'exterior';
+    params.compressorEnabled = settings.compressorEnabled || false;
+    params.compressorAmount = settings.compressorAmount || 0.5;
+    params.reverbEnabled = settings.reverbEnabled || false;
+    params.reverbAmount = settings.reverbAmount || 0.3;
+    updateParamsFromUI();
+  } catch (e) {
+    console.warn('Failed to load settings:', e);
+  }
+}
+
+// Load settings on startup
+loadSettings();
+
+// Save settings whenever they change
+[ncylInput, idleRpmInput, redlineRpmInput, inertiaInput, noiseInput].forEach(el => {
+  el.addEventListener('change', saveSettings);
+});
+
+presetInput.addEventListener('change', saveSettings);
+perspectiveInput.addEventListener('change', saveSettings);
+compressorEnabledInput.addEventListener('change', saveSettings);
+compressorAmountInput.addEventListener('change', saveSettings);
+reverbEnabledInput.addEventListener('change', saveSettings);
+reverbAmountInput.addEventListener('change', saveSettings);

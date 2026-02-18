@@ -3,37 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Real-time browser-based engine sound simulator using Web Audio API">
   <title>Realtime Engine Simulator</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
+  <div class="container" role="main">
     <h1>Engine Simulator</h1>
     
-    <div class="dashboard">
-      <div class="rpm-gauge">
+    <div class="dashboard" role="region" aria-label="Engine status display">
+      <div class="rpm-gauge" role="status" aria-live="polite">
         <span id="rpm-value">0</span> <span class="unit">RPM</span>
       </div>
-      
-      <div class="throttle-bar">
+
+      <div class="throttle-bar" role="meter" aria-label="Throttle level" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
         <div class="throttle-fill" id="throttle-fill"></div>
       </div>
       <div class="label">Throttle</div>
     </div>
 
-    <div class="controls">
-      <button id="start-btn">Start Engine</button>
-      <button id="pedal-btn" class="pedal">GAS PEDAL (Hold)</button>
-      <p id="status">Ready</p>
-      
-      <div class="settings">
+    <div class="controls" role="region" aria-label="Engine controls">
+      <button id="start-btn" aria-label="Start or stop engine">Start Engine</button>
+      <button id="pedal-btn" class="pedal" aria-label="Gas pedal - hold to accelerate">GAS PEDAL (Hold)</button>
+      <p id="status" role="status" aria-live="polite">Ready</p>
+
+      <div class="settings" role="region" aria-label="Engine parameters">
         <div class="control-group">
           <label for="engine-preset">Preset:</label>
-          <select id="engine-preset">
+          <select id="engine-preset" aria-label="Engine preset selection">
             <option value="custom">Custom</option>
             <option value="na">NA (Naturally Aspirated)</option>
             <option value="turbo">Turbo-like</option>
-            <option value="fa24">FA24 Boxer</option>
             <option value="vtec">VTEC (High-cam Crossover)</option>
             <option value="fa24">FA24 (Boxer Rumble)</option>
           </select>
@@ -41,32 +41,32 @@
 
         <div class="control-group">
           <label for="ncyl">Cylinders:</label>
-          <input type="number" id="ncyl" value="4" min="1" max="12">
+          <input type="number" id="ncyl" value="4" min="1" max="12" aria-label="Number of cylinders">
         </div>
-        
+
         <div class="control-group">
           <label for="idle-rpm">Idle RPM:</label>
-          <input type="number" id="idle-rpm" value="900" min="500" max="2000">
+          <input type="number" id="idle-rpm" value="900" min="500" max="2000" aria-label="Idle RPM value">
         </div>
-        
+
         <div class="control-group">
           <label for="redline-rpm">Redline RPM:</label>
-          <input type="number" id="redline-rpm" value="7000" min="3000" max="12000">
+          <input type="number" id="redline-rpm" value="7000" min="3000" max="12000" aria-label="Redline RPM value">
         </div>
-        
+
         <div class="control-group">
           <label for="inertia">Inertia (0-1):</label>
-          <input type="range" id="inertia" min="0.8" max="0.99" step="0.01" value="0.95">
+          <input type="range" id="inertia" min="0.8" max="0.99" step="0.01" value="0.95" aria-label="Engine inertia">
         </div>
 
         <div class="control-group">
             <label for="noise-gain">Noise:</label>
-            <input type="range" id="noise-gain" min="0" max="1" step="0.01" value="0.2">
+            <input type="range" id="noise-gain" min="0" max="1" step="0.01" value="0.2" aria-label="Noise level">
         </div>
 
         <div class="control-group">
           <label for="audio-perspective">Perspective:</label>
-          <select id="audio-perspective">
+          <select id="audio-perspective" aria-label="Audio perspective selection">
             <option value="exterior">Exterior (Muffler)</option>
             <option value="interior">Interior (Cabin)</option>
             <option value="enginebay">Engine Bay</option>
@@ -75,14 +75,14 @@
 
         <div class="control-group">
           <label for="compressor-enabled">Compressor:</label>
-          <input type="checkbox" id="compressor-enabled">
-          <input type="range" id="compressor-amount" min="0" max="1" step="0.01" value="0.5">
+          <input type="checkbox" id="compressor-enabled" aria-label="Enable compressor effect">
+          <input type="range" id="compressor-amount" min="0" max="1" step="0.01" value="0.5" aria-label="Compressor amount">
         </div>
 
         <div class="control-group">
           <label for="reverb-enabled">Reverb:</label>
-          <input type="checkbox" id="reverb-enabled">
-          <input type="range" id="reverb-amount" min="0" max="1" step="0.01" value="0.3">
+          <input type="checkbox" id="reverb-enabled" aria-label="Enable reverb effect">
+          <input type="range" id="reverb-amount" min="0" max="1" step="0.01" value="0.3" aria-label="Reverb amount">
         </div>
       </div>
 
