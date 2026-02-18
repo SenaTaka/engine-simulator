@@ -31,6 +31,9 @@ This application consists of three main components:
   - Redline RPM
   - Inertia (engine response)
   - Noise level
+  - Audio perspective (Exterior/Interior/Engine Bay)
+  - Compressor effect with adjustable amount
+  - Reverb effect with adjustable amount
 - Specialized engine characteristics:
   - **VTEC**: Simulates high-cam crossover around 5600 RPM
   - **FA24 Boxer**: Emphasizes low-mid range frequencies with paired pulse sensation and distinctive boxer rumble, including lift-off burble effects
@@ -57,8 +60,6 @@ python3 -m http.server 8000
 ### Future Improvements
 
 - Gear ratios, vehicle speed, and load modeling
-- EQ presets for exhaust/interior/exterior perspectives
-- Effects chain support (compressor, reverb)
 
 ### Technologies
 
@@ -96,6 +97,9 @@ python3 -m http.server 8000
   - レッドライン（Redline RPM）
   - 慣性（Inertia）
   - ノイズ量（Noise）
+  - 音響視点（マフラー/車内/エンジンルーム）
+  - コンプレッサーエフェクト（量調整可能）
+  - リバーブエフェクト（量調整可能）
 - 各種エンジン特性:
   - **VTEC**: 約5600rpm付近で高カム側に遷移する音色設計
   - **FA24 Boxer**: 低中域を強調し、リフトオフ時のバーブルを加えたドロドロ系サウンド。低中域のペアドパルス感・ローピングするランブル・ラフな燃焼ノイズを強め、水平対向らしい「ドロドロ」感を実現
@@ -122,8 +126,6 @@ python3 -m http.server 8000
 ### 今後の改善アイデア
 
 - ギア比・車速・負荷モデルの導入
-- マフラー/車内外視点のEQプリセット追加
-- エフェクトチェーン（コンプレッサー、リバーブ）対応
 
 ### 使用技術
 

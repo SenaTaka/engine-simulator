@@ -63,8 +63,29 @@
             <label for="noise-gain">Noise:</label>
             <input type="range" id="noise-gain" min="0" max="1" step="0.01" value="0.2">
         </div>
+
+        <div class="control-group">
+          <label for="audio-perspective">Perspective:</label>
+          <select id="audio-perspective">
+            <option value="exterior">Exterior (Muffler)</option>
+            <option value="interior">Interior (Cabin)</option>
+            <option value="enginebay">Engine Bay</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="compressor-enabled">Compressor:</label>
+          <input type="checkbox" id="compressor-enabled">
+          <input type="range" id="compressor-amount" min="0" max="1" step="0.01" value="0.5">
+        </div>
+
+        <div class="control-group">
+          <label for="reverb-enabled">Reverb:</label>
+          <input type="checkbox" id="reverb-enabled">
+          <input type="range" id="reverb-amount" min="0" max="1" step="0.01" value="0.3">
+        </div>
       </div>
-      
+
       <p class="instructions">Use <strong>SPACE</strong> or <strong>UP ARROW</strong> to accelerate.</p>
     </div>
   </div>
