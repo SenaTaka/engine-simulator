@@ -8,6 +8,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     this.postLpfState = 0;
     this.randomWalk = 0;
     this.combPulse = 0;
+    this.turboPhase = 0;
     
     // Pre-calculate random phase offsets for each harmonic to break phase coherence
     // This makes it sound less like a synth/organ
@@ -20,7 +21,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'rpm', defaultValue: 1000, minValue: 0, maxValue: 12000 },
       { name: 'throttle', defaultValue: 0.15, minValue: 0, maxValue: 1 },
       { name: 'ncyl', defaultValue: 4, minValue: 1, maxValue: 12 },
-      { name: 'noiseGain', defaultValue: 0.2, minValue: 0, maxValue: 1 }
+      { name: 'noiseGain', defaultValue: 0.2, minValue: 0, maxValue: 1 },
+      { name: 'turboMode', defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
   }
 
@@ -34,6 +36,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     const throttleParams = parameters.throttle;
     const ncylParams = parameters.ncyl;
     const noiseGainParams = parameters.noiseGain;
+    const turboModeParams = parameters.turboMode;
     
     // Constant for harmonic count
     const n_harm = 24;
@@ -45,6 +48,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       const throttle = throttleParams.length > 1 ? throttleParams[i] : throttleParams[0];
       const ncyl = ncylParams.length > 1 ? ncylParams[i] : ncylParams[0];
       const noiseGain = noiseGainParams.length > 1 ? noiseGainParams[i] : noiseGainParams[0];
+      const turboMode = turboModeParams.length > 1 ? turboModeParams[i] : turboModeParams[0];
 
       // 1. Fundamental Frequency & Jitter
       const jitterAmount = 0.001 + 0.003 * (1.0 - throttle);
@@ -105,13 +109,22 @@ class EngineProcessor extends AudioWorkletProcessor {
       const rpmNorm = Math.min(1.0, rpm / 8000.0);
       const mechNoise = (0.18 + 0.75 * rpmNorm) * hpf;
 
+      // Turbo-like whistle and spool texture
+      const turboSpool = turboMode * Math.max(0.0, throttle - 0.2) * Math.min(1.0, rpm / 7000.0);
+      const whistleFreq = 900 + 2500 * turboSpool;
+      this.turboPhase += (2.0 * Math.PI * whistleFreq) / sampleRate;
+      if (this.turboPhase > 2.0 * Math.PI) this.turboPhase -= 2.0 * Math.PI;
+      const whistle = Math.sin(this.turboPhase) * (0.12 * turboSpool);
+      const turboWhoosh = turboSpool * (0.2 + 0.8 * throttle) * hpf;
+
       // Combustion crackle: bursty modulation tied to firing phase
       const cycleEnergy = 0.5 + 0.5 * Math.sin(this.phase);
       const burst = Math.pow(cycleEnergy, 3.2);
       this.combPulse = 0.9 * this.combPulse + 0.1 * burst;
       const combustionNoise = this.combPulse * white * (0.2 + 0.9 * throttle);
 
-      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise);
+      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh);
+      signal += whistle;
       signal += noiseComp;
 
       // 4. Body Resonance
