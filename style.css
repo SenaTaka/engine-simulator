@@ -85,6 +85,19 @@ h1 { margin-top: 0; }
   transition: width 0.1s linear;
 }
 
+.speed-gear {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  color: #ccc;
+}
+
+.speed-display,
+.gear-display {
+  font-weight: 600;
+}
+
 .controls button {
   background: #0070f3;
   color: white;
