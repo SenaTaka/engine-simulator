@@ -20,6 +20,11 @@
         <div class="throttle-fill" id="throttle-fill"></div>
       </div>
       <div class="label">Throttle</div>
+
+      <div class="load-bar" role="meter" aria-label="Load level" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+        <div class="load-fill" id="load-fill"></div>
+      </div>
+      <div class="label">Load</div>
     </div>
 
     <div class="controls" role="region" aria-label="Engine controls">
@@ -62,6 +67,11 @@
         <div class="control-group">
             <label for="noise-gain">Noise:</label>
             <input type="range" id="noise-gain" min="0" max="1" step="0.01" value="0.2" aria-label="Noise level">
+        </div>
+
+        <div class="control-group">
+          <label for="load">Load (0-1):</label>
+          <input type="range" id="load" min="0" max="1" step="0.01" value="0.0" aria-label="Engine load">
         </div>
 
         <div class="control-group">

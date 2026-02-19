@@ -70,6 +70,21 @@ h1 { margin-top: 0; }
   transition: width 0.1s linear;
 }
 
+.load-bar {
+  height: 20px;
+  background: #444;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.load-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #4444ff, #ff8800);
+  transition: width 0.1s linear;
+}
+
 .controls button {
   background: #0070f3;
   color: white;
@@ -172,7 +187,8 @@ select:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .throttle-fill {
+  .throttle-fill,
+  .load-fill {
     transition: none;
   }
 }

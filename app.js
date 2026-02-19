@@ -53,12 +53,14 @@ const params = {
   compressorEnabled: false,
   compressorAmount: 0.5,
   reverbEnabled: false,
-  reverbAmount: 0.3
+  reverbAmount: 0.3,
+  load: 0.0 // Load level (0-1): 0 = no load (free rev), 1 = maximum load
 };
 
 // UI Elements
 const rpmDisplay = document.getElementById('rpm-value');
 const throttleFill = document.getElementById('throttle-fill');
+const loadFill = document.getElementById('load-fill');
 const startButton = document.getElementById('start-btn');
 const statusText = document.getElementById('status');
 
@@ -74,6 +76,7 @@ const compressorEnabledInput = document.getElementById('compressor-enabled');
 const compressorAmountInput = document.getElementById('compressor-amount');
 const reverbEnabledInput = document.getElementById('reverb-enabled');
 const reverbAmountInput = document.getElementById('reverb-amount');
+const loadInput = document.getElementById('load');
 
 /**
  * Engine preset profiles with predefined parameters
@@ -288,6 +291,10 @@ reverbAmountInput.addEventListener('input', () => {
   updateReverb();
 });
 
+loadInput.addEventListener('input', () => {
+  params.load = Math.max(0, Math.min(1, parseFloat(loadInput.value) || 0));
+});
+
 /**
  * Main animation loop - updates throttle, RPM, and UI
  */
@@ -303,22 +310,35 @@ function update() {
   // Physics: Update RPM
   // Engine wants to go to:
   // Idle RPM + (Redline - Idle) * Throttle
-  // But with inertia
-  // If throttle is high, target is high RPM. If low, target is idle.
-  // Actually, engine RPM depends on load/gear, but here we assume neutral/clutch down, so it revs freely based on throttle.
-  // But also needs to return to idle when throttle is 0.
-  
-  const targetRpm = params.idleRpm + (params.redlineRpm - params.idleRpm) * params.currentThrottle;
-  
+  // But with inertia and load resistance
+  // Load represents resistance (gear, vehicle weight, uphill, etc.)
+  // When load is high, the engine can't rev freely - it needs more throttle to reach same RPM
+  // When load is 0, engine revs freely like in neutral
+
+  // Calculate target RPM based on throttle and load
+  // With load, effective throttle is reduced, simulating resistance
+  const loadEffect = params.load * (1.0 - params.currentThrottle * 0.7); // Load has less effect at high throttle
+  const effectiveThrottle = Math.max(0, params.currentThrottle - loadEffect);
+
+  const targetRpm = params.idleRpm + (params.redlineRpm - params.idleRpm) * effectiveThrottle;
+
   // RPM inertia logic:
   // Current RPM moves towards Target RPM.
-  // Speed of change depends on inertia.
-  // Using simple low-pass filter logic:
-  // new_rpm = current_rpm * inertia + target_rpm * (1 - inertia)
-  // But 'inertia' user input is 0-1, where 1 is infinite inertia.
-  
-  const inertiaFactor = params.inertia; 
-  params.currentRpm = params.currentRpm * inertiaFactor + targetRpm * (1.0 - inertiaFactor);
+  // Speed of change depends on inertia and load.
+  // Higher load means slower acceleration and faster deceleration
+
+  let effectiveInertia = params.inertia;
+
+  // When under load, RPM changes more slowly (harder to accelerate)
+  if (targetRpm > params.currentRpm) {
+    // Accelerating: load makes it harder
+    effectiveInertia = params.inertia + (1.0 - params.inertia) * params.load * 0.5;
+  } else {
+    // Decelerating: load can cause faster deceleration (engine braking effect)
+    effectiveInertia = params.inertia * (1.0 - params.load * 0.15);
+  }
+
+  params.currentRpm = params.currentRpm * effectiveInertia + targetRpm * (1.0 - effectiveInertia);
 
   // Send to AudioWorklet
   if (engineNode) {
@@ -331,6 +351,7 @@ function update() {
     const vtecModeParam = engineNode.parameters.get('vtecMode');
     const fa24ModeParam = engineNode.parameters.get('fa24Mode');
     const redlineRpmParam = engineNode.parameters.get('redlineRpm');
+    const loadParam = engineNode.parameters.get('load');
 
     const now = audioCtx.currentTime;
     rpmParam.setValueAtTime(params.currentRpm, now);
@@ -342,11 +363,13 @@ function update() {
     vtecModeParam.setValueAtTime(params.enginePreset === 'vtec' ? 1 : 0, now);
     fa24ModeParam.setValueAtTime(params.enginePreset === 'fa24' ? 1 : 0, now);
     redlineRpmParam.setValueAtTime(params.redlineRpm, now);
+    loadParam.setValueAtTime(params.load, now);
   }
 
   // Update UI
   rpmDisplay.textContent = Math.round(params.currentRpm);
   throttleFill.style.width = `${params.currentThrottle * 100}%`;
+  loadFill.style.width = `${params.load * 100}%`;
 
   // Update RPM gauge color based on proximity to redline
   const rpmGaugeElement = rpmDisplay.parentElement;
@@ -363,6 +386,12 @@ function update() {
   const throttleBar = document.querySelector('.throttle-bar');
   if (throttleBar) {
     throttleBar.setAttribute('aria-valuenow', Math.round(params.currentThrottle * 100));
+  }
+
+  // Update load meter aria-valuenow for accessibility
+  const loadBar = document.querySelector('.load-bar');
+  if (loadBar) {
+    loadBar.setAttribute('aria-valuenow', Math.round(params.load * 100));
   }
 
   requestAnimationFrame(update);
@@ -511,7 +540,8 @@ function saveSettings() {
       compressorEnabled: params.compressorEnabled,
       compressorAmount: params.compressorAmount,
       reverbEnabled: params.reverbEnabled,
-      reverbAmount: params.reverbAmount
+      reverbAmount: params.reverbAmount,
+      load: params.load
     };
     localStorage.setItem('engineSimulatorSettings', JSON.stringify(settings));
   } catch (e) {
@@ -541,6 +571,7 @@ function loadSettings() {
     if (settings.compressorAmount !== undefined) compressorAmountInput.value = settings.compressorAmount;
     if (settings.reverbEnabled !== undefined) reverbEnabledInput.checked = settings.reverbEnabled;
     if (settings.reverbAmount !== undefined) reverbAmountInput.value = settings.reverbAmount;
+    if (settings.load !== undefined) loadInput.value = settings.load;
 
     // Update params from loaded inputs
     params.enginePreset = settings.enginePreset || 'custom';
@@ -549,6 +580,7 @@ function loadSettings() {
     params.compressorAmount = settings.compressorAmount || 0.5;
     params.reverbEnabled = settings.reverbEnabled || false;
     params.reverbAmount = settings.reverbAmount || 0.3;
+    params.load = settings.load || 0.0;
     updateParamsFromUI();
   } catch (e) {
     console.warn('Failed to load settings:', e);
@@ -569,3 +601,4 @@ compressorEnabledInput.addEventListener('change', saveSettings);
 compressorAmountInput.addEventListener('change', saveSettings);
 reverbEnabledInput.addEventListener('change', saveSettings);
 reverbAmountInput.addEventListener('change', saveSettings);
+loadInput.addEventListener('change', saveSettings);
