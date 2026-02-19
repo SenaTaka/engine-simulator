@@ -61,9 +61,89 @@ python3 -m http.server 8000
 - Sound quality, latency, and performance may vary depending on browser and device capabilities
 - Uses Web Audio API's AudioWorklet for low-latency, high-quality audio synthesis
 
+### Architecture
+
+The application follows a layered architecture:
+
+```
+┌────────────────────────────────────┐
+│  index.html (Presentation Layer)  │
+│  UI components, displays, controls │
+└────────────────────────────────────┘
+                ↓
+┌────────────────────────────────────┐
+│   app.js (Application Layer)       │
+│   - CONFIG: Centralized config     │
+│   - Physics engine (RPM, torque)   │
+│   - Vehicle dynamics (speed, load) │
+│   - Input handling                 │
+│   - Audio parameter sync           │
+└────────────────────────────────────┘
+                ↓
+┌────────────────────────────────────┐
+│ engine-processor.js (Audio Layer)  │
+│ - SynthConstants: Audio parameters │
+│ - Harmonic synthesis               │
+│ - Multi-band noise generation      │
+│ - Resonance modeling               │
+│ - Engine mode implementations      │
+└────────────────────────────────────┘
+```
+
+**Key Design Principles:**
+- **Separation of concerns**: UI, logic, and audio synthesis are cleanly separated
+- **Configuration over hardcoding**: All tunable parameters are in CONFIG and SynthConstants objects
+- **Real-time synthesis**: No audio samples; everything is procedurally generated
+- **Modular structure**: Easy to add new engine presets or audio perspectives
+
+### Development
+
+#### Code Structure
+
+- `app.js`: Contains CONFIG object with all application settings (presets, perspectives, vehicle parameters, physics constants)
+- `engine-processor.js`: Contains SynthConstants object with all audio synthesis parameters
+- `.claude/context.md`: Comprehensive documentation for Claude AI assistance
+
+#### Adding a New Engine Preset
+
+Edit the `CONFIG.presets` object in `app.js`:
+
+```javascript
+CONFIG.presets.myEngine = {
+  ncyl: 6,
+  idleRpm: 700,
+  redlineRpm: 8000,
+  inertia: 0.94,
+  noiseGain: 0.25
+};
+```
+
+Then add the preset to the `<select>` element in `index.html`.
+
+#### Customizing Audio Characteristics
+
+Modify values in `SynthConstants` object in `engine-processor.js`:
+
+```javascript
+// Example: Adjust VTEC crossover point
+VTEC_CROSSOVER_CENTER: 6000.0  // Default: 5600.0
+
+// Example: Adjust harmonic count
+HARMONIC_COUNT: 32  // Default: 24
+```
+
+#### Browser Requirements
+
+- **Chrome/Edge**: 66+ (AudioWorklet support)
+- **Firefox**: 76+ (AudioWorklet support)
+- **Safari**: 14.1+ (AudioWorklet support)
+
 ### Future Improvements
 
 - Tire grip/traction loss modeling
+- Additional engine modes (rotary, diesel, electric motor simulation)
+- Recording and playback functionality
+- Visual spectrum analyzer
 
 ### Technologies
 
@@ -131,9 +211,89 @@ python3 -m http.server 8000
 - ブラウザや端末性能により、音色・遅延・負荷は変わる場合があります
 - Web Audio API の AudioWorklet を使用した低遅延・高品質な音声合成を実現
 
+### アーキテクチャ
+
+アプリケーションはレイヤー化されたアーキテクチャに従っています：
+
+```
+┌────────────────────────────────────┐
+│  index.html (プレゼンテーション層) │
+│  UI コンポーネント、表示、コントロール │
+└────────────────────────────────────┘
+                ↓
+┌────────────────────────────────────┐
+│   app.js (アプリケーション層)       │
+│   - CONFIG: 集約化された設定        │
+│   - 物理エンジン (RPM, トルク)      │
+│   - 車両動力学 (速度, 負荷)         │
+│   - 入力処理                       │
+│   - オーディオパラメータ同期         │
+└────────────────────────────────────┘
+                ↓
+┌────────────────────────────────────┐
+│ engine-processor.js (オーディオ層)  │
+│ - SynthConstants: 音声合成パラメータ │
+│ - ハーモニクス合成                  │
+│ - マルチバンドノイズ生成             │
+│ - 共鳴モデリング                    │
+│ - エンジンモード実装                │
+└────────────────────────────────────┘
+```
+
+**主要な設計原則:**
+- **関心の分離**: UI、ロジック、音声合成が明確に分離されています
+- **ハードコーディングより設定**: すべての調整可能なパラメータは CONFIG および SynthConstants オブジェクトに含まれています
+- **リアルタイム合成**: 音声サンプルは使用せず、すべて手続き的に生成されます
+- **モジュール構造**: 新しいエンジンプリセットや音響視点を追加しやすい設計
+
+### 開発
+
+#### コード構造
+
+- `app.js`: すべてのアプリケーション設定を含む CONFIG オブジェクト（プリセット、視点、車両パラメータ、物理定数）
+- `engine-processor.js`: すべての音声合成パラメータを含む SynthConstants オブジェクト
+- `.claude/context.md`: Claude AI 支援のための包括的なドキュメント
+
+#### 新しいエンジンプリセットの追加
+
+`app.js` の `CONFIG.presets` オブジェクトを編集します：
+
+```javascript
+CONFIG.presets.myEngine = {
+  ncyl: 6,
+  idleRpm: 700,
+  redlineRpm: 8000,
+  inertia: 0.94,
+  noiseGain: 0.25
+};
+```
+
+次に、`index.html` の `<select>` 要素にプリセットを追加します。
+
+#### オーディオ特性のカスタマイズ
+
+`engine-processor.js` の `SynthConstants` オブジェクトの値を変更します：
+
+```javascript
+// 例: VTEC クロスオーバーポイントの調整
+VTEC_CROSSOVER_CENTER: 6000.0  // デフォルト: 5600.0
+
+// 例: ハーモニック数の調整
+HARMONIC_COUNT: 32  // デフォルト: 24
+```
+
+#### ブラウザ要件
+
+- **Chrome/Edge**: 66+ (AudioWorklet サポート)
+- **Firefox**: 76+ (AudioWorklet サポート)
+- **Safari**: 14.1+ (AudioWorklet サポート)
+
 ### 今後の改善アイデア
 
 - タイヤグリップ・トラクションの表現強化
+- 追加のエンジンモード（ロータリー、ディーゼル、電気モーターシミュレーション）
+- 録音および再生機能
+- ビジュアルスペクトラムアナライザー
 
 ### 使用技術
 
