@@ -3,6 +3,111 @@
  * Uses Web Audio API's AudioWorklet for realistic engine sound generation
  */
 
+/**
+ * Configuration constants for the engine simulator
+ */
+const CONFIG = {
+  // Physics constants
+  physics: {
+    AIR_DENSITY: 1.225, // kg/m³
+    GRAVITY: 9.81 // m/s²
+  },
+
+  // Vehicle default configuration
+  vehicle: {
+    gearRatios: [3.62, 2.19, 1.62, 1.27, 1.03, 0.82], // 6-speed transmission
+    finalDrive: 3.42,
+    wheelRadius: 0.33, // meters
+    mass: 1450, // kg
+    dragCoef: 0.32,
+    frontalArea: 2.2, // m²
+    rollingResistance: 0.015,
+    drivelineEfficiency: 0.9
+  },
+
+  // Engine parameter constraints
+  constraints: {
+    ncyl: { min: 1, max: 12, default: 4 },
+    idleRpm: { min: 500, max: 2000, default: 900 },
+    redlineRpm: { min: 3000, max: 12000, default: 7000 },
+    inertia: { min: 0.8, max: 0.99, default: 0.95 },
+    noiseGain: { min: 0, max: 1, default: 0.2 }
+  },
+
+  // Engine presets
+  presets: {
+    na: {
+      ncyl: 4,
+      idleRpm: 850,
+      redlineRpm: 7800,
+      inertia: 0.92,
+      noiseGain: 0.16
+    },
+    turbo: {
+      ncyl: 4,
+      idleRpm: 1000,
+      redlineRpm: 6800,
+      inertia: 0.97,
+      noiseGain: 0.34
+    },
+    vtec: {
+      ncyl: 4,
+      idleRpm: 900,
+      redlineRpm: 8600,
+      inertia: 0.9,
+      noiseGain: 0.22
+    },
+    fa24: {
+      ncyl: 4,
+      idleRpm: 780,
+      redlineRpm: 7400,
+      inertia: 0.96,
+      noiseGain: 0.42
+    }
+  },
+
+  // Audio perspective EQ profiles
+  perspectives: {
+    exterior: {
+      lowShelf: { freq: 120, gain: 4 },
+      mid: { freq: 800, gain: -2, Q: 1.0 },
+      highShelf: { freq: 3000, gain: -6 }
+    },
+    interior: {
+      lowShelf: { freq: 100, gain: 6 },
+      mid: { freq: 500, gain: 3, Q: 0.8 },
+      highShelf: { freq: 2500, gain: -10 }
+    },
+    enginebay: {
+      lowShelf: { freq: 150, gain: -2 },
+      mid: { freq: 1200, gain: 4, Q: 1.2 },
+      highShelf: { freq: 4000, gain: 8 }
+    }
+  },
+
+  // Reverb settings
+  reverb: {
+    duration: 2.0,
+    decay: 2.0,
+    sampleRate: 44100
+  },
+
+  // Default parameter values
+  defaults: {
+    currentRpm: 1000,
+    currentThrottle: 0.0,
+    targetThrottle: 0.0,
+    throttleResponse: 0.1,
+    audioPerspective: 'exterior',
+    compressorEnabled: false,
+    compressorAmount: 0.5,
+    reverbEnabled: false,
+    reverbAmount: 0.3,
+    load: 0.0,
+    roadLoad: 0.0
+  }
+};
+
 // Audio context and nodes
 let audioCtx;
 let engineNode = null;
@@ -39,40 +144,32 @@ let masterGainNode = null;
  * @property {number} reverbAmount - Reverb effect amount (0-1)
  */
 const params = {
-  currentRpm: 1000,
-  currentThrottle: 0.0,
-  targetThrottle: 0.0,
-  ncyl: 4,
-  noiseGain: 0.2,
-  idleRpm: 900,
+  currentRpm: CONFIG.defaults.currentRpm,
+  currentThrottle: CONFIG.defaults.currentThrottle,
+  targetThrottle: CONFIG.defaults.targetThrottle,
+  ncyl: CONFIG.constraints.ncyl.default,
+  noiseGain: CONFIG.constraints.noiseGain.default,
+  idleRpm: CONFIG.constraints.idleRpm.default,
   enginePreset: 'custom',
-  redlineRpm: 7000,
-  inertia: 0.95, // Higher is slower response (0-1)
-  throttleResponse: 0.1, // How fast throttle moves to target
-  audioPerspective: 'exterior',
-  compressorEnabled: false,
-  compressorAmount: 0.5,
-  reverbEnabled: false,
-  reverbAmount: 0.3,
-  load: 0.0, // Computed engine load (0-1): 0 = no load (free rev), 1 = maximum load
-  roadLoad: 0.0 // Road/incline load input (0-1)
+  redlineRpm: CONFIG.constraints.redlineRpm.default,
+  inertia: CONFIG.constraints.inertia.default,
+  throttleResponse: CONFIG.defaults.throttleResponse,
+  audioPerspective: CONFIG.defaults.audioPerspective,
+  compressorEnabled: CONFIG.defaults.compressorEnabled,
+  compressorAmount: CONFIG.defaults.compressorAmount,
+  reverbEnabled: CONFIG.defaults.reverbEnabled,
+  reverbAmount: CONFIG.defaults.reverbAmount,
+  load: CONFIG.defaults.load,
+  roadLoad: CONFIG.defaults.roadLoad
 };
 
 // Vehicle state for simple load and speed modeling
 const vehicleState = {
   speed: 0, // m/s
   gear: 1,
-  gearRatios: [3.62, 2.19, 1.62, 1.27, 1.03, 0.82],
-  finalDrive: 3.42,
-  wheelRadius: 0.33, // meters
-  mass: 1450, // kg
-  dragCoef: 0.32,
-  frontalArea: 2.2, // m^2
-  rollingResistance: 0.015,
-  drivelineEfficiency: 0.9
+  ...CONFIG.vehicle
 };
 
-const AIR_DENSITY = 1.225;
 let lastUpdateTime = performance.now();
 
 // UI Elements
@@ -100,46 +197,11 @@ const gearInput = document.getElementById('gear');
 const roadLoadInput = document.getElementById('load');
 
 /**
- * Engine preset profiles with predefined parameters
- * @type {Object.<string, {ncyl: number, idleRpm: number, redlineRpm: number, inertia: number, noiseGain: number}>}
- */
-const presetProfiles = {
-  na: {
-    ncyl: 4,
-    idleRpm: 850,
-    redlineRpm: 7800,
-    inertia: 0.92,
-    noiseGain: 0.16
-  },
-  turbo: {
-    ncyl: 4,
-    idleRpm: 1000,
-    redlineRpm: 6800,
-    inertia: 0.97,
-    noiseGain: 0.34
-  },
-  vtec: {
-    ncyl: 4,
-    idleRpm: 900,
-    redlineRpm: 8600,
-    inertia: 0.9,
-    noiseGain: 0.22
-  },
-  fa24: {
-    ncyl: 4,
-    idleRpm: 780,
-    redlineRpm: 7400,
-    inertia: 0.96,
-    noiseGain: 0.42
-  }
-};
-
-/**
  * Apply a predefined engine preset
  * @param {string} presetName - Name of the preset to apply
  */
 function applyPreset(presetName) {
-  const preset = presetProfiles[presetName];
+  const preset = CONFIG.presets[presetName];
   if (!preset) return;
 
   ncylInput.value = preset.ncyl;
@@ -156,12 +218,13 @@ function applyPreset(presetName) {
  * Update engine parameters from UI input values
  */
 function updateParamsFromUI() {
-  // Validate and constrain input values
-  params.ncyl = Math.max(1, Math.min(12, parseInt(ncylInput.value) || 4));
-  params.idleRpm = Math.max(500, Math.min(2000, parseInt(idleRpmInput.value) || 900));
-  params.redlineRpm = Math.max(3000, Math.min(12000, parseInt(redlineRpmInput.value) || 7000));
-  params.inertia = Math.max(0.8, Math.min(0.99, parseFloat(inertiaInput.value) || 0.95));
-  params.noiseGain = Math.max(0, Math.min(1, parseFloat(noiseInput.value) || 0.2));
+  // Validate and constrain input values using CONFIG constraints
+  const c = CONFIG.constraints;
+  params.ncyl = Math.max(c.ncyl.min, Math.min(c.ncyl.max, parseInt(ncylInput.value) || c.ncyl.default));
+  params.idleRpm = Math.max(c.idleRpm.min, Math.min(c.idleRpm.max, parseInt(idleRpmInput.value) || c.idleRpm.default));
+  params.redlineRpm = Math.max(c.redlineRpm.min, Math.min(c.redlineRpm.max, parseInt(redlineRpmInput.value) || c.redlineRpm.default));
+  params.inertia = Math.max(c.inertia.min, Math.min(c.inertia.max, parseFloat(inertiaInput.value) || c.inertia.default));
+  params.noiseGain = Math.max(c.noiseGain.min, Math.min(c.noiseGain.max, parseFloat(noiseInput.value) || c.noiseGain.default));
 
   // Ensure redline is higher than idle
   if (params.redlineRpm <= params.idleRpm) {
@@ -190,35 +253,13 @@ presetInput.addEventListener('change', () => {
 });
 
 /**
- * EQ perspective profiles for different audio listening positions
- * @type {Object.<string, {lowShelf: Object, mid: Object, highShelf: Object}>}
- */
-const perspectiveProfiles = {
-  exterior: {
-    lowShelf: { freq: 120, gain: 4 },
-    mid: { freq: 800, gain: -2, Q: 1.0 },
-    highShelf: { freq: 3000, gain: -6 }
-  },
-  interior: {
-    lowShelf: { freq: 80, gain: -3 },
-    mid: { freq: 2500, gain: 3, Q: 0.7 },
-    highShelf: { freq: 6000, gain: -8 }
-  },
-  enginebay: {
-    lowShelf: { freq: 150, gain: 2 },
-    mid: { freq: 1200, gain: 5, Q: 1.5 },
-    highShelf: { freq: 4000, gain: 0 }
-  }
-};
-
-/**
  * Apply EQ settings based on audio perspective
  * @param {string} perspective - Audio perspective (exterior/interior/enginebay)
  */
 function applyEQPerspective(perspective) {
   if (!eqLowShelfNode || !eqMidNode || !eqHighShelfNode) return;
 
-  const profile = perspectiveProfiles[perspective];
+  const profile = CONFIG.perspectives[perspective];
   if (!profile) return;
 
   eqLowShelfNode.frequency.value = profile.lowShelf.freq;
@@ -266,11 +307,11 @@ function updateReverb() {
 /**
  * Create a reverb impulse response buffer
  * @param {AudioContext} audioContext - The audio context
- * @param {number} duration - Duration in seconds
- * @param {number} decay - Decay rate
+ * @param {number} duration - Duration in seconds (defaults to CONFIG value)
+ * @param {number} decay - Decay rate (defaults to CONFIG value)
  * @returns {Promise<AudioBuffer>} The created impulse response buffer
  */
-async function createReverbImpulse(audioContext, duration = 2.0, decay = 2.0) {
+async function createReverbImpulse(audioContext, duration = CONFIG.reverb.duration, decay = CONFIG.reverb.decay) {
   const sampleRate = audioContext.sampleRate;
   const length = sampleRate * duration;
   const impulse = audioContext.createBuffer(2, length, sampleRate);
@@ -361,9 +402,9 @@ function update() {
   const wheelTorque = isCoupled ? engineTorque * overallRatio * vehicleState.drivelineEfficiency : 0;
   const tractiveForce = isCoupled ? wheelTorque / vehicleState.wheelRadius : 0;
 
-  const aeroDrag = 0.5 * AIR_DENSITY * vehicleState.dragCoef * vehicleState.frontalArea * vehicleState.speed * vehicleState.speed;
-  const rollingResistance = vehicleState.mass * 9.81 * vehicleState.rollingResistance;
-  const gradeForce = vehicleState.mass * 9.81 * params.roadLoad * 0.45;
+  const aeroDrag = 0.5 * CONFIG.physics.AIR_DENSITY * vehicleState.dragCoef * vehicleState.frontalArea * vehicleState.speed * vehicleState.speed;
+  const rollingResistance = vehicleState.mass * CONFIG.physics.GRAVITY * vehicleState.rollingResistance;
+  const gradeForce = vehicleState.mass * CONFIG.physics.GRAVITY * params.roadLoad * 0.45;
   const resistiveForce = aeroDrag + rollingResistance + gradeForce;
 
   const netForce = isCoupled ? tractiveForce - resistiveForce : -resistiveForce;
