@@ -54,8 +54,26 @@ const params = {
   compressorAmount: 0.5,
   reverbEnabled: false,
   reverbAmount: 0.3,
-  load: 0.0 // Load level (0-1): 0 = no load (free rev), 1 = maximum load
+  load: 0.0, // Computed engine load (0-1): 0 = no load (free rev), 1 = maximum load
+  roadLoad: 0.0 // Road/incline load input (0-1)
 };
+
+// Vehicle state for simple load and speed modeling
+const vehicleState = {
+  speed: 0, // m/s
+  gear: 1,
+  gearRatios: [3.62, 2.19, 1.62, 1.27, 1.03, 0.82],
+  finalDrive: 3.42,
+  wheelRadius: 0.33, // meters
+  mass: 1450, // kg
+  dragCoef: 0.32,
+  frontalArea: 2.2, // m^2
+  rollingResistance: 0.015,
+  drivelineEfficiency: 0.9
+};
+
+const AIR_DENSITY = 1.225;
+let lastUpdateTime = performance.now();
 
 // UI Elements
 const rpmDisplay = document.getElementById('rpm-value');
@@ -63,6 +81,8 @@ const throttleFill = document.getElementById('throttle-fill');
 const loadFill = document.getElementById('load-fill');
 const startButton = document.getElementById('start-btn');
 const statusText = document.getElementById('status');
+const speedDisplay = document.getElementById('speed-value');
+const gearDisplay = document.getElementById('gear-value');
 
 // Controls
 const ncylInput = document.getElementById('ncyl');
@@ -76,7 +96,8 @@ const compressorEnabledInput = document.getElementById('compressor-enabled');
 const compressorAmountInput = document.getElementById('compressor-amount');
 const reverbEnabledInput = document.getElementById('reverb-enabled');
 const reverbAmountInput = document.getElementById('reverb-amount');
-const loadInput = document.getElementById('load');
+const gearInput = document.getElementById('gear');
+const roadLoadInput = document.getElementById('load');
 
 /**
  * Engine preset profiles with predefined parameters
@@ -291,9 +312,29 @@ reverbAmountInput.addEventListener('input', () => {
   updateReverb();
 });
 
-loadInput.addEventListener('input', () => {
-  params.load = Math.max(0, Math.min(1, parseFloat(loadInput.value) || 0));
+roadLoadInput.addEventListener('input', () => {
+  params.roadLoad = Math.max(0, Math.min(1, parseFloat(roadLoadInput.value) || 0));
 });
+
+gearInput.addEventListener('change', () => {
+  vehicleState.gear = parseInt(gearInput.value, 10) || 0;
+});
+
+function getOverallRatio() {
+  if (vehicleState.gear <= 0) return 0;
+  const gear = vehicleState.gearRatios[vehicleState.gear - 1] || 0;
+  return gear * vehicleState.finalDrive;
+}
+
+function calcEngineTorque(rpm, throttle) {
+  const rpmSpan = Math.max(1, params.redlineRpm - params.idleRpm);
+  const norm = Math.min(1, Math.max(0, (rpm - params.idleRpm) / rpmSpan));
+  const mid = 0.55;
+  const width = 0.35;
+  const shape = Math.max(0, 1 - Math.pow((norm - mid) / width, 2));
+  const baseTorque = 320;
+  return baseTorque * shape * (0.25 + 0.75 * throttle);
+}
 
 /**
  * Main animation loop - updates throttle, RPM, and UI
@@ -301,44 +342,65 @@ loadInput.addEventListener('input', () => {
 function update() {
   if (!isPlaying) return;
 
+  const nowTime = performance.now();
+  const dt = Math.min(0.05, (nowTime - lastUpdateTime) / 1000);
+  lastUpdateTime = nowTime;
+
   // Physics: Update Throttle
   // Smoothly interpolate current throttle to target throttle
   // Simple easing
   const throttleDiff = params.targetThrottle - params.currentThrottle;
   params.currentThrottle += throttleDiff * params.throttleResponse;
-  
-  // Physics: Update RPM
-  // Engine wants to go to:
-  // Idle RPM + (Redline - Idle) * Throttle
-  // But with inertia and load resistance
-  // Load represents resistance (gear, vehicle weight, uphill, etc.)
-  // When load is high, the engine can't rev freely - it needs more throttle to reach same RPM
-  // When load is 0, engine revs freely like in neutral
 
-  // Calculate target RPM based on throttle and load
-  // With load, effective throttle is reduced, simulating resistance
-  const loadEffect = params.load * (1.0 - params.currentThrottle * 0.7); // Load has less effect at high throttle
-  const effectiveThrottle = Math.max(0, params.currentThrottle - loadEffect);
+  const overallRatio = getOverallRatio();
+  const isCoupled = overallRatio > 0;
+  const wheelRpm = vehicleState.speed > 0 ? (vehicleState.speed / (2 * Math.PI * vehicleState.wheelRadius)) * 60 : 0;
+  const drivelineRpm = isCoupled ? wheelRpm * overallRatio : 0;
 
-  const targetRpm = params.idleRpm + (params.redlineRpm - params.idleRpm) * effectiveThrottle;
+  const engineTorque = calcEngineTorque(params.currentRpm, params.currentThrottle);
+  const wheelTorque = isCoupled ? engineTorque * overallRatio * vehicleState.drivelineEfficiency : 0;
+  const tractiveForce = isCoupled ? wheelTorque / vehicleState.wheelRadius : 0;
+
+  const aeroDrag = 0.5 * AIR_DENSITY * vehicleState.dragCoef * vehicleState.frontalArea * vehicleState.speed * vehicleState.speed;
+  const rollingResistance = vehicleState.mass * 9.81 * vehicleState.rollingResistance;
+  const gradeForce = vehicleState.mass * 9.81 * params.roadLoad * 0.45;
+  const resistiveForce = aeroDrag + rollingResistance + gradeForce;
+
+  const netForce = isCoupled ? tractiveForce - resistiveForce : -resistiveForce;
+  const accel = netForce / vehicleState.mass;
+  vehicleState.speed = Math.max(0, vehicleState.speed + accel * dt);
+
+  // Determine target RPM blending free-rev and driveline-coupled RPM
+  const freeTargetRpm = params.idleRpm + (params.redlineRpm - params.idleRpm) * params.currentThrottle;
+  const speedCoupling = Math.min(0.4, vehicleState.speed * 0.02);
+  const coupling = isCoupled ? Math.min(0.85, 0.25 + 0.35 * params.currentThrottle + speedCoupling) : 0;
+  const targetRpm = isCoupled ? Math.max(params.idleRpm, drivelineRpm * coupling + freeTargetRpm * (1.0 - coupling)) : freeTargetRpm;
+
+  const rpmSpan = Math.max(1, params.redlineRpm - params.idleRpm);
+  const peakTorque = calcEngineTorque(params.idleRpm + rpmSpan * 0.55, 1.0);
+  const potentialWheelForce = isCoupled
+    ? (peakTorque * overallRatio * vehicleState.drivelineEfficiency) / vehicleState.wheelRadius
+    : 0;
+  const loadFromForce = potentialWheelForce > 0 ? Math.min(1, (resistiveForce + Math.max(0, vehicleState.mass * Math.max(0, accel))) / potentialWheelForce) : 0;
+  const slipLoad = isCoupled ? Math.min(1, Math.abs(targetRpm - drivelineRpm) / Math.max(1, params.redlineRpm)) : 0;
+
+  params.load = Math.max(0, Math.min(1, 0.15 + 0.5 * loadFromForce + 0.25 * params.currentThrottle + 0.2 * params.roadLoad + 0.15 * slipLoad));
 
   // RPM inertia logic:
   // Current RPM moves towards Target RPM.
   // Speed of change depends on inertia and load.
-  // Higher load means slower acceleration and faster deceleration
-
   let effectiveInertia = params.inertia;
 
   // When under load, RPM changes more slowly (harder to accelerate)
   if (targetRpm > params.currentRpm) {
-    // Accelerating: load makes it harder
-    effectiveInertia = params.inertia + (1.0 - params.inertia) * params.load * 0.5;
+    effectiveInertia = params.inertia + (1.0 - params.inertia) * params.load * 0.6;
   } else {
     // Decelerating: load can cause faster deceleration (engine braking effect)
-    effectiveInertia = params.inertia * (1.0 - params.load * 0.15);
+    effectiveInertia = params.inertia * (1.0 - params.load * 0.25);
   }
 
   params.currentRpm = params.currentRpm * effectiveInertia + targetRpm * (1.0 - effectiveInertia);
+  params.currentRpm = Math.max(params.idleRpm * 0.75, Math.min(params.currentRpm, params.redlineRpm * 1.05));
 
   // Send to AudioWorklet
   if (engineNode) {
@@ -370,6 +432,12 @@ function update() {
   rpmDisplay.textContent = Math.round(params.currentRpm);
   throttleFill.style.width = `${params.currentThrottle * 100}%`;
   loadFill.style.width = `${params.load * 100}%`;
+  if (speedDisplay) {
+    speedDisplay.textContent = Math.round(vehicleState.speed * 3.6);
+  }
+  if (gearDisplay) {
+    gearDisplay.textContent = vehicleState.gear <= 0 ? 'N' : vehicleState.gear;
+  }
 
   // Update RPM gauge color based on proximity to redline
   const rpmGaugeElement = rpmDisplay.parentElement;
@@ -508,6 +576,7 @@ startButton.addEventListener('click', async () => {
       updateReverb();
     }
 
+    lastUpdateTime = performance.now();
     isPlaying = true;
     startButton.textContent = 'Stop Engine';
     statusText.textContent = 'Running';
@@ -541,7 +610,9 @@ function saveSettings() {
       compressorAmount: params.compressorAmount,
       reverbEnabled: params.reverbEnabled,
       reverbAmount: params.reverbAmount,
-      load: params.load
+      roadLoad: params.roadLoad,
+      load: params.roadLoad,
+      gear: vehicleState.gear
     };
     localStorage.setItem('engineSimulatorSettings', JSON.stringify(settings));
   } catch (e) {
@@ -571,7 +642,13 @@ function loadSettings() {
     if (settings.compressorAmount !== undefined) compressorAmountInput.value = settings.compressorAmount;
     if (settings.reverbEnabled !== undefined) reverbEnabledInput.checked = settings.reverbEnabled;
     if (settings.reverbAmount !== undefined) reverbAmountInput.value = settings.reverbAmount;
-    if (settings.load !== undefined) loadInput.value = settings.load;
+    if (settings.gear !== undefined) gearInput.value = settings.gear;
+
+    const savedRoadLoad = settings.roadLoad !== undefined ? settings.roadLoad : settings.load;
+    if (savedRoadLoad !== undefined) {
+      params.roadLoad = Math.max(0, Math.min(1, savedRoadLoad));
+      roadLoadInput.value = params.roadLoad;
+    }
 
     // Update params from loaded inputs
     params.enginePreset = settings.enginePreset || 'custom';
@@ -580,8 +657,12 @@ function loadSettings() {
     params.compressorAmount = settings.compressorAmount || 0.5;
     params.reverbEnabled = settings.reverbEnabled || false;
     params.reverbAmount = settings.reverbAmount || 0.3;
-    params.load = settings.load || 0.0;
+    params.load = 0.0;
+    params.roadLoad = params.roadLoad || 0.0;
+    vehicleState.gear = parseInt(gearInput.value, 10) || 0;
     updateParamsFromUI();
+    if (gearDisplay) gearDisplay.textContent = vehicleState.gear <= 0 ? 'N' : vehicleState.gear;
+    if (speedDisplay) speedDisplay.textContent = Math.round(vehicleState.speed * 3.6);
   } catch (e) {
     console.warn('Failed to load settings:', e);
   }
@@ -601,4 +682,5 @@ compressorEnabledInput.addEventListener('change', saveSettings);
 compressorAmountInput.addEventListener('change', saveSettings);
 reverbEnabledInput.addEventListener('change', saveSettings);
 reverbAmountInput.addEventListener('change', saveSettings);
-loadInput.addEventListener('change', saveSettings);
+roadLoadInput.addEventListener('change', saveSettings);
+gearInput.addEventListener('change', saveSettings);

@@ -37,6 +37,10 @@ This application consists of three main components:
 - Specialized engine characteristics:
   - **VTEC**: Simulates high-cam crossover around 5600 RPM
   - **FA24 Boxer**: Emphasizes low-mid range frequencies with paired pulse sensation and distinctive boxer rumble, including lift-off burble effects
+- Gearbox and load modeling:
+  - Selectable gears with vehicle speed readout
+  - Road load slider to mimic incline/drag
+  - Engine load affects RPM response and tone
 
 ### Usage
 
@@ -59,7 +63,7 @@ python3 -m http.server 8000
 
 ### Future Improvements
 
-- Gear ratios, vehicle speed, and load modeling
+- Tire grip/traction loss modeling
 
 ### Technologies
 
@@ -103,6 +107,10 @@ python3 -m http.server 8000
 - 各種エンジン特性:
   - **VTEC**: 約5600rpm付近で高カム側に遷移する音色設計
   - **FA24 Boxer**: 低中域を強調し、リフトオフ時のバーブルを加えたドロドロ系サウンド。低中域のペアドパルス感・ローピングするランブル・ラフな燃焼ノイズを強め、水平対向らしい「ドロドロ」感を実現
+- ギア比・車速・負荷モデル:
+  - ギア選択と車速表示
+  - 登り坂や空気抵抗を模したロード負荷スライダー
+  - エンジン負荷がレスポンスと音色に反映
 
 ### 使い方
 
@@ -125,7 +133,7 @@ python3 -m http.server 8000
 
 ### 今後の改善アイデア
 
-- ギア比・車速・負荷モデルの導入
+- タイヤグリップ・トラクションの表現強化
 
 ### 使用技術
 
