@@ -60,7 +60,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'boxerMode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'vtecMode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'fa24Mode', defaultValue: 0, minValue: 0, maxValue: 1 },
-      { name: 'redlineRpm', defaultValue: 7000, minValue: 3000, maxValue: 12000 }
+      { name: 'redlineRpm', defaultValue: 7000, minValue: 3000, maxValue: 12000 },
+      { name: 'load', defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
   }
 
@@ -79,6 +80,7 @@ class EngineProcessor extends AudioWorkletProcessor {
     const vtecModeParams = parameters.vtecMode;
     const fa24ModeParams = parameters.fa24Mode;
     const redlineRpmParams = parameters.redlineRpm;
+    const loadParams = parameters.load;
     
     // Constant for harmonic count
     const n_harm = 24;
@@ -95,6 +97,7 @@ class EngineProcessor extends AudioWorkletProcessor {
       const vtecMode = vtecModeParams.length > 1 ? vtecModeParams[i] : vtecModeParams[0];
       const fa24Mode = fa24ModeParams.length > 1 ? fa24ModeParams[i] : fa24ModeParams[0];
       const redlineRpm = redlineRpmParams.length > 1 ? redlineRpmParams[i] : redlineRpmParams[0];
+      const load = loadParams.length > 1 ? loadParams[i] : loadParams[0];
 
       // Rev limiter simulation: fuel cut at redline
       let revLimiterCut = 1.0;
@@ -226,16 +229,19 @@ class EngineProcessor extends AudioWorkletProcessor {
       // 3. Intake/Mechanical/Combustion Noise (multi-band)
       const white = (Math.random() * 2.0 - 1.0);
 
+      // Load-dependent noise: under load, engine produces more mechanical and combustion noise
+      const loadStress = load * (0.3 + 0.7 * throttle); // Load effect increases with throttle
+
       // Intake rumble: low-mid broadband that grows strongly with throttle
       const intakeLpfAlpha = 0.05 + 0.18 * throttle;
       this.lpfState += intakeLpfAlpha * (white - this.lpfState);
-      const intakeNoise = (0.35 + 1.35 * throttle) * this.lpfState;
+      const intakeNoise = (0.35 + 1.35 * throttle + 0.4 * loadStress) * this.lpfState;
 
-      // Mechanical hiss: high-frequency texture, stronger at high RPM
+      // Mechanical hiss: high-frequency texture, stronger at high RPM and under load
       this.hpfState += 0.055 * (white - this.hpfState);
       const hpf = white - this.hpfState;
       const rpmNorm = Math.min(1.0, rpm / 8000.0);
-      const mechNoise = (0.18 + 0.75 * rpmNorm) * hpf;
+      const mechNoise = (0.18 + 0.75 * rpmNorm + 0.5 * loadStress) * hpf;
 
       // Turbo-like whistle and spool texture
       const turboSpool = turboMode * Math.max(0.0, throttle - 0.2) * Math.min(1.0, rpm / 7000.0);
@@ -246,10 +252,11 @@ class EngineProcessor extends AudioWorkletProcessor {
       const turboWhoosh = turboSpool * (0.2 + 0.8 * throttle) * hpf;
 
       // Combustion crackle: bursty modulation tied to firing phase
+      // Under load, combustion is more aggressive and uneven
       const cycleEnergy = 0.5 + 0.5 * Math.sin(this.phase);
-      const burst = Math.pow(cycleEnergy, 3.2);
+      const burst = Math.pow(cycleEnergy, 3.2 - 0.8 * loadStress); // Load makes combustion less smooth
       this.combPulse = 0.9 * this.combPulse + 0.1 * burst;
-      const combustionNoise = this.combPulse * white * (0.2 + 0.9 * throttle);
+      const combustionNoise = this.combPulse * white * (0.2 + 0.9 * throttle + 0.6 * loadStress);
 
       // Alternating-bank roughness in the 100-280Hz area for boxer exhaust note.
       const boxerNoiseShape = 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(this.phase * 0.5 + 1.25));
@@ -308,7 +315,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       signal *= revLimiterCut; 
 
       // 5. Distortion
-      const drive = 0.9 + 2.2 * throttle + 0.35 * vtecBlend + 0.28 * fa24Mode;
+      // Under load, engine runs harder and produces more distortion
+      const drive = 0.9 + 2.2 * throttle + 0.35 * vtecBlend + 0.28 * fa24Mode + 0.4 * loadStress;
       signal = Math.tanh(drive * signal);
 
       // Post-filter distortion output to reduce buzzy high-RPM edge
