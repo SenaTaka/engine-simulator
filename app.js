@@ -15,14 +15,14 @@ const CONFIG = {
 
   // Vehicle default configuration
   vehicle: {
-    gearRatios: [3.62, 2.19, 1.62, 1.27, 1.03, 0.82], // 6-speed transmission
-    finalDrive: 3.42,
-    wheelRadius: 0.33, // meters
-    mass: 1450, // kg
-    dragCoef: 0.32,
-    frontalArea: 2.2, // m²
-    rollingResistance: 0.015,
-    drivelineEfficiency: 0.9
+    gearRatios: [3.62, 2.19, 1.62, 1.27, 1.03, 0.82], // 6-speed transmission (typical sports car ratios)
+    finalDrive: 3.42, // Differential ratio
+    wheelRadius: 0.33, // meters (typical 255/40R18 tire)
+    mass: 1350, // kg (lighter, more realistic for sports car)
+    dragCoef: 0.30, // Improved aerodynamics
+    frontalArea: 2.1, // m² (slightly reduced for sports car)
+    rollingResistance: 0.012, // Coefficient (sport tires have lower rolling resistance)
+    drivelineEfficiency: 0.92 // Improved efficiency (90-95% is typical for modern transmissions)
   },
 
   // Engine parameter constraints
@@ -370,11 +370,15 @@ function getOverallRatio() {
 function calcEngineTorque(rpm, throttle) {
   const rpmSpan = Math.max(1, params.redlineRpm - params.idleRpm);
   const norm = Math.min(1, Math.max(0, (rpm - params.idleRpm) / rpmSpan));
-  const mid = 0.55;
-  const width = 0.35;
+  // More realistic torque curve: peak around 60% of RPM range (4200-4800 RPM for typical engine)
+  const mid = 0.60;
+  const width = 0.40;
   const shape = Math.max(0, 1 - Math.pow((norm - mid) / width, 2));
-  const baseTorque = 320;
-  return baseTorque * shape * (0.25 + 0.75 * throttle);
+  // Realistic torque values: 250-300 Nm for typical 4-cylinder NA engine
+  const baseTorque = 280;
+  // At closed throttle, still produce minimal torque (pumping losses, friction)
+  // At full throttle, produce full torque according to curve
+  return baseTorque * shape * (0.15 + 0.85 * throttle);
 }
 
 /**
@@ -404,7 +408,9 @@ function update() {
 
   const aeroDrag = 0.5 * CONFIG.physics.AIR_DENSITY * vehicleState.dragCoef * vehicleState.frontalArea * vehicleState.speed * vehicleState.speed;
   const rollingResistance = vehicleState.mass * CONFIG.physics.GRAVITY * vehicleState.rollingResistance;
-  const gradeForce = vehicleState.mass * CONFIG.physics.GRAVITY * params.roadLoad * 0.45;
+  // Grade force: roadLoad slider represents grade (0 = flat, 1 = steep hill ~25%)
+  // sin(θ) ≈ θ for small angles, so roadLoad of 0.5 = ~12-13% grade
+  const gradeForce = vehicleState.mass * CONFIG.physics.GRAVITY * params.roadLoad * 0.25;
   const resistiveForce = aeroDrag + rollingResistance + gradeForce;
 
   const netForce = isCoupled ? tractiveForce - resistiveForce : -resistiveForce;
@@ -417,27 +423,55 @@ function update() {
   const coupling = isCoupled ? Math.min(0.85, 0.25 + 0.35 * params.currentThrottle + speedCoupling) : 0;
   const targetRpm = isCoupled ? Math.max(params.idleRpm, drivelineRpm * coupling + freeTargetRpm * (1.0 - coupling)) : freeTargetRpm;
 
+  // Calculate engine load more realistically:
+  // Load = (actual torque demand) / (maximum available torque at current RPM)
   const rpmSpan = Math.max(1, params.redlineRpm - params.idleRpm);
-  const peakTorque = calcEngineTorque(params.idleRpm + rpmSpan * 0.55, 1.0);
-  const potentialWheelForce = isCoupled
-    ? (peakTorque * overallRatio * vehicleState.drivelineEfficiency) / vehicleState.wheelRadius
-    : 0;
-  const loadFromForce = potentialWheelForce > 0 ? Math.min(1, (resistiveForce + Math.max(0, vehicleState.mass * Math.max(0, accel))) / potentialWheelForce) : 0;
-  const slipLoad = isCoupled ? Math.min(1, Math.abs(targetRpm - drivelineRpm) / Math.max(1, params.redlineRpm)) : 0;
+  const maxTorqueAtCurrentRpm = calcEngineTorque(params.currentRpm, 1.0);
 
-  params.load = Math.max(0, Math.min(1, 0.15 + 0.5 * loadFromForce + 0.25 * params.currentThrottle + 0.2 * params.roadLoad + 0.15 * slipLoad));
+  // Calculate required torque to overcome resistance
+  const requiredTorque = isCoupled
+    ? (resistiveForce * vehicleState.wheelRadius) / (overallRatio * vehicleState.drivelineEfficiency)
+    : 0;
+
+  // Base load from resistance forces
+  const resistanceLoad = maxTorqueAtCurrentRpm > 0
+    ? Math.min(1.0, requiredTorque / maxTorqueAtCurrentRpm)
+    : 0;
+
+  // Additional load when accelerating (inertial load)
+  const inertialLoad = isCoupled && accel > 0
+    ? Math.min(0.35, (vehicleState.mass * Math.abs(accel) * vehicleState.wheelRadius) / (maxTorqueAtCurrentRpm * overallRatio * vehicleState.drivelineEfficiency))
+    : 0;
+
+  // RPM mismatch indicates clutch slip or gear mismatch - creates load
+  const slipLoad = isCoupled && drivelineRpm > 0
+    ? Math.min(0.25, Math.abs(params.currentRpm - drivelineRpm) / Math.max(1, drivelineRpm * 0.5))
+    : 0;
+
+  // Final load calculation - no artificial base, purely physics-based
+  // When freewheeling (not coupled), load is minimal (just internal friction)
+  if (!isCoupled) {
+    params.load = 0.05; // Minimal internal friction load
+  } else {
+    params.load = Math.max(0, Math.min(1, resistanceLoad + inertialLoad + slipLoad));
+  }
 
   // RPM inertia logic:
   // Current RPM moves towards Target RPM.
   // Speed of change depends on inertia and load.
   let effectiveInertia = params.inertia;
 
-  // When under load, RPM changes more slowly (harder to accelerate)
+  // When under load and accelerating, RPM changes more slowly (harder to rev up)
   if (targetRpm > params.currentRpm) {
-    effectiveInertia = params.inertia + (1.0 - params.inertia) * params.load * 0.6;
+    // Higher load = harder to accelerate
+    // Load directly reduces available power for acceleration
+    const loadResistance = Math.min(0.9, params.load * 0.7);
+    effectiveInertia = params.inertia + (1.0 - params.inertia) * loadResistance;
   } else {
-    // Decelerating: load can cause faster deceleration (engine braking effect)
-    effectiveInertia = params.inertia * (1.0 - params.load * 0.25);
+    // Decelerating: load causes engine braking (faster deceleration)
+    // But inertia still matters
+    const engineBraking = isCoupled ? params.load * 0.3 : 0;
+    effectiveInertia = params.inertia * (1.0 - engineBraking);
   }
 
   params.currentRpm = params.currentRpm * effectiveInertia + targetRpm * (1.0 - effectiveInertia);
