@@ -152,6 +152,7 @@ HARMONIC_COUNT: 32  // Default: 24
 For comprehensive project information, refer to:
 - **[REQUIREMENTS.md](REQUIREMENTS.md)** - Complete requirements definition document
 - **[AI_INSTRUCTIONS.md](AI_INSTRUCTIONS.md)** - Instructions for creating mobile version
+- **[ENGINE_SOUND_ALGORITHM_JA.md](ENGINE_SOUND_ALGORITHM_JA.md)** - Detailed Japanese explanation of the engine sound generation algorithm
 - **[.claude/context.md](.claude/context.md)** - Technical architecture and development guide
 
 ### Mobile Support
@@ -325,6 +326,7 @@ HARMONIC_COUNT: 32  // デフォルト: 24
 包括的なプロジェクト情報については、以下を参照してください：
 - **[REQUIREMENTS.md](REQUIREMENTS.md)** - 完全な要件定義書
 - **[AI_INSTRUCTIONS.md](AI_INSTRUCTIONS.md)** - モバイル版作成のための指示書
+- **[ENGINE_SOUND_ALGORITHM_JA.md](ENGINE_SOUND_ALGORITHM_JA.md)** - エンジン音生成アルゴリズムの詳細な日本語解説
 - **[.claude/context.md](.claude/context.md)** - 技術アーキテクチャと開発ガイド
 
 ### モバイルサポート

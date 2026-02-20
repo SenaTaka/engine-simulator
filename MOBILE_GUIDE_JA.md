@@ -235,6 +235,7 @@ if ('serviceWorker' in navigator) {
 詳細な実装方法は以下を参照：
 - **[AI_INSTRUCTIONS.md](AI_INSTRUCTIONS.md)** - 完全な実装ガイド（英語）
 - **[REQUIREMENTS.md](REQUIREMENTS.md)** - 詳細な要件定義（英語）
+- **[ENGINE_SOUND_ALGORITHM_JA.md](ENGINE_SOUND_ALGORITHM_JA.md)** - エンジン音生成アルゴリズムの詳細解説（日本語）
 - **[.claude/context.md](.claude/context.md)** - 技術アーキテクチャ（英語）
 
 ## 📝 ライセンス
