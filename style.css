@@ -1,6 +1,6 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: #1a1a1a;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
   color: #f0f0f0;
   display: flex;
   justify-content: center;
@@ -10,57 +10,191 @@ body {
 }
 
 .container {
-  background-color: #2a2a2a;
+  background: linear-gradient(145deg, #1e1e2e 0%, #2a2a3e 100%);
   padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 40px rgba(0,255,136,0.1);
   text-align: center;
   width: 90%;
-  max-width: 500px;
+  max-width: 600px;
+  border: 1px solid rgba(0,255,136,0.2);
 }
 
-h1 { margin-top: 0; }
+h1 {
+  margin-top: 0;
+  background: linear-gradient(90deg, #00ff88, #00ccff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 2.5rem;
+  letter-spacing: 2px;
+}
 
 .dashboard {
   margin: 2rem 0;
-  padding: 1rem;
-  background: #333;
-  border-radius: 8px;
+  padding: 1.5rem;
+  background: rgba(0,0,0,0.3);
+  border-radius: 16px;
+  border: 1px solid rgba(0,255,136,0.15);
 }
 
-.rpm-gauge {
-  font-size: 4rem;
+/* Circular RPM Gauge */
+.rpm-gauge-circular {
+  margin: 0 auto 1.5rem;
+  max-width: 300px;
+}
+
+.gauge-svg {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 0 10px rgba(0,255,136,0.3));
+}
+
+.rpm-text {
+  font-size: 32px;
+  font-weight: bold;
+  fill: #00ff88;
+  font-family: 'Courier New', monospace;
+}
+
+.rpm-unit {
+  font-size: 12px;
+  fill: #888;
+  font-weight: normal;
+}
+
+.shift-light {
+  fill: #333;
+  transition: fill 0.1s;
+}
+
+.shift-light.active {
+  fill: #ff0055;
+  filter: drop-shadow(0 0 4px #ff0055);
+}
+
+/* Speed and Gear Row */
+.speed-gear-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+.speed-display-box,
+.gear-display-box {
+  flex: 1;
+  background: rgba(0,0,0,0.4);
+  border-radius: 12px;
+  padding: 1rem;
+  border: 2px solid rgba(0,255,136,0.2);
+}
+
+.display-value {
+  font-size: 2.5rem;
   font-weight: bold;
   color: #00ff88;
-  font-variant-numeric: tabular-nums;
-  position: relative;
+  font-family: 'Courier New', monospace;
 }
 
-.rpm-gauge.warning {
-  color: #ffcc00;
-}
-
-.rpm-gauge.danger {
-  color: #ff0055;
-  animation: pulse 0.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-.unit {
-  font-size: 1rem;
+.display-label {
+  font-size: 0.8rem;
   color: #888;
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* Gear Buttons */
+.gear-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+
+.gear-btn {
+  background: rgba(0,0,0,0.4);
+  color: #aaa;
+  border: 2px solid rgba(255,255,255,0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 45px;
+}
+
+.gear-btn:hover {
+  background: rgba(0,255,136,0.1);
+  border-color: rgba(0,255,136,0.3);
+  transform: translateY(-2px);
+}
+
+.gear-btn.active {
+  background: linear-gradient(135deg, #00ff88, #00ccff);
+  color: #000;
+  border-color: #00ff88;
+  box-shadow: 0 0 20px rgba(0,255,136,0.5);
+}
+
+/* Performance Metrics */
+.performance-metrics {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.metric {
+  flex: 1;
+  background: rgba(0,0,0,0.3);
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0,255,136,0.1);
+}
+
+.metric-label {
+  font-size: 0.7rem;
+  color: #888;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.metric-value {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #00ff88;
+  font-family: 'Courier New', monospace;
+}
+
+/* Bars Container */
+.bars-container {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.bar-group {
+  flex: 1;
+}
+
+.label {
+  font-size: 0.75rem;
+  color: #888;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .throttle-bar {
-  height: 20px;
-  background: #444;
-  border-radius: 10px;
+  height: 24px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 12px;
   overflow: hidden;
-  margin-top: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 .throttle-fill {
@@ -68,14 +202,15 @@ h1 { margin-top: 0; }
   width: 0%;
   background: linear-gradient(90deg, #00ff88, #ffcc00, #ff0055);
   transition: width 0.1s linear;
+  box-shadow: 0 0 10px rgba(0,255,136,0.5);
 }
 
 .load-bar {
-  height: 20px;
-  background: #444;
-  border-radius: 10px;
+  height: 24px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 12px;
   overflow: hidden;
-  margin-top: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 .load-fill {
@@ -83,66 +218,192 @@ h1 { margin-top: 0; }
   width: 0%;
   background: linear-gradient(90deg, #4444ff, #ff8800);
   transition: width 0.1s linear;
+  box-shadow: 0 0 10px rgba(68,68,255,0.5);
 }
 
-.speed-gear {
+/* Main Controls */
+.main-controls {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 12px;
-  color: #ccc;
-}
-
-.speed-display,
-.gear-display {
-  font-weight: 600;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
 }
 
 .controls button {
-  background: #0070f3;
+  background: linear-gradient(135deg, #0070f3, #0052cc);
   color: white;
   border: none;
-  padding: 12px 24px;
-  border-radius: 6px;
+  padding: 14px 28px;
+  border-radius: 12px;
   font-size: 1.1rem;
+  font-weight: bold;
   cursor: pointer;
-  margin: 5px;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(0,112,243,0.3);
+  position: relative;
+  overflow: hidden;
 }
 
-.controls button.pedal {
-    background: #ff4444;
+.controls button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.controls button:hover::before {
+  width: 300px;
+  height: 300px;
 }
 
 .controls button:hover {
-  opacity: 0.9;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 25px rgba(0,112,243,0.5);
+}
+
+.controls button.pedal {
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  box-shadow: 0 4px 15px rgba(255,68,68,0.3);
+}
+
+.controls button.pedal:hover {
+  box-shadow: 0 6px 25px rgba(255,68,68,0.5);
+}
+
+.controls button.launch-control {
+  background: linear-gradient(135deg, #ffcc00, #ff8800);
+  box-shadow: 0 4px 15px rgba(255,204,0,0.3);
+}
+
+.controls button.launch-control:hover {
+  box-shadow: 0 6px 25px rgba(255,204,0,0.5);
+}
+
+.controls button.launch-control.active {
+  animation: launch-pulse 0.5s infinite;
+}
+
+@keyframes launch-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255,204,0,0.8);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(255,204,0,1);
+    transform: scale(1.05);
+  }
 }
 
 .settings {
   margin-top: 2rem;
   text-align: left;
-  background: #222;
-  padding: 1rem;
-  border-radius: 8px;
+  background: rgba(0,0,0,0.3);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0,255,136,0.1);
 }
 
 .control-group {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
 }
 
-input[type="number"] {
-  background: #444;
-  border: 1px solid #555;
+.control-group label {
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+input[type="number"],
+select {
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(0,255,136,0.2);
   color: white;
-  padding: 5px;
-  border-radius: 4px;
-  width: 60px;
+  padding: 8px;
+  border-radius: 8px;
+  width: 80px;
+  transition: all 0.2s;
+}
+
+input[type="number"]:focus,
+select:focus {
+  border-color: #00ff88;
+  box-shadow: 0 0 10px rgba(0,255,136,0.3);
 }
 
 input[type="range"] {
-    width: 60%;
+  width: 60%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.5);
+  outline: none;
+  -webkit-appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00ff88, #00ccff);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0,255,136,0.5);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00ff88, #00ccff);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 10px rgba(0,255,136,0.5);
+}
+
+input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #00ff88;
+}
+
+.instructions {
+  margin-top: 1.5rem;
+  background: rgba(0,255,136,0.05);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0,255,136,0.2);
+}
+
+.instructions p {
+  margin: 0 0 0.5rem 0;
+  color: #00ff88;
+}
+
+.instructions ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.instructions li {
+  padding: 0.25rem 0;
+  color: #ccc;
+  font-size: 0.9rem;
+}
+
+.instructions strong {
+  color: #00ff88;
 }
 
 /* Visual feedback for disabled state */
@@ -159,6 +420,13 @@ select:focus {
   outline-offset: 2px;
 }
 
+#status {
+  color: #00ff88;
+  font-weight: bold;
+  font-size: 1.1rem;
+  text-shadow: 0 0 10px rgba(0,255,136,0.5);
+}
+
 /* Responsive design */
 @media (max-width: 600px) {
   .container {
@@ -167,11 +435,49 @@ select:focus {
   }
 
   h1 {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
   }
 
-  .rpm-gauge {
-    font-size: 3rem;
+  .rpm-gauge-circular {
+    max-width: 250px;
+  }
+
+  .rpm-text {
+    font-size: 28px;
+  }
+
+  .display-value {
+    font-size: 2rem;
+  }
+
+  .gear-buttons {
+    gap: 0.3rem;
+  }
+
+  .gear-btn {
+    padding: 0.4rem 0.8rem;
+    min-width: 40px;
+    font-size: 0.9rem;
+  }
+
+  .performance-metrics {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .bars-container {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .main-controls {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .controls button {
+    width: 100%;
+    padding: 12px 20px;
   }
 
   .control-group {
@@ -192,16 +498,21 @@ select:focus {
   select {
     width: 100%;
   }
-
-  .controls button {
-    width: 100%;
-    margin: 5px 0;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .throttle-fill,
-  .load-fill {
+  .load-fill,
+  button,
+  .gear-btn {
+    transition: none;
+  }
+
+  button::before {
+    display: none;
+  }
+
+  .shift-light {
     transition: none;
   }
 }
