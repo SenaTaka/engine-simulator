@@ -41,8 +41,14 @@ This application consists of three main components:
   - Selectable gears with vehicle speed readout
   - Road load slider to mimic incline/drag
   - Engine load affects RPM response and tone
+- Real Vehicle Mode:
+  - Uses GPS and accelerometer sensors to estimate throttle
+  - Automatically generates engine sound based on actual vehicle motion
+  - Perfect for mounting a device in your car to add engine sound effects
 
 ### Usage
+
+#### Standard Mode
 
 1. Clone this repository to your local machine
 2. Start a simple HTTP server in the root directory (required for `AudioWorklet` - `http://` protocol, not `file://`):
@@ -55,11 +61,25 @@ python3 -m http.server 8000
 4. Click **Start Engine** to begin audio playback
 5. Use keyboard input or hold the pedal button to accelerate, and adjust parameters to hear the sound changes
 
+#### Real Vehicle Mode
+
+1. Access the application from a mobile device (HTTPS required for sensor access)
+2. Click **Start Engine** to begin audio playback
+3. Enable **Real Vehicle Mode** checkbox in the controls
+4. Grant GPS and motion sensor permissions when prompted
+5. Drive your vehicle - the engine sound will automatically match your acceleration and speed
+6. The sensor status display shows GPS and accelerometer connection status
+
 ### Technical Notes
 
 - Mobile devices require user interaction (button tap) to start audio playback
 - Sound quality, latency, and performance may vary depending on browser and device capabilities
 - Uses Web Audio API's AudioWorklet for low-latency, high-quality audio synthesis
+- **Real Vehicle Mode Requirements**:
+  - HTTPS connection required for GPS and accelerometer access
+  - GPS permission required for speed measurement
+  - Motion sensor permission required for acceleration detection (iOS 13+ requires explicit permission)
+  - Works best when device is securely mounted in vehicle
 
 ### Architecture
 
@@ -215,8 +235,14 @@ This application works on mobile browsers but is optimized for desktop use. For 
   - ギア選択と車速表示
   - 登り坂や空気抵抗を模したロード負荷スライダー
   - エンジン負荷がレスポンスと音色に反映
+- 実車モード:
+  - GPSと加速度センサーを使用してスロットルを自動推定
+  - 実際の車両の動きに基づいてエンジン音を自動生成
+  - 車内にデバイスを設置してエンジン音エフェクトを追加するのに最適
 
 ### 使い方
+
+#### 標準モード
 
 1. このリポジトリをローカルに配置します
 2. ルートディレクトリで簡易HTTPサーバーを起動します（`AudioWorklet` の都合で `file://` ではなく `http://` 推奨）:
@@ -229,11 +255,25 @@ python3 -m http.server 8000
 4. **Start Engine** を押して音声を開始します
 5. キー入力またはペダルボタンで加速し、設定値を調整して音の変化を確認します
 
+#### 実車モード
+
+1. モバイルデバイスからアプリケーションにアクセスします（センサーアクセスにはHTTPSが必要）
+2. **Start Engine** を押して音声を開始します
+3. コントロールパネルの **Real Vehicle Mode** チェックボックスを有効にします
+4. プロンプトが表示されたらGPSとモーションセンサーの許可を付与します
+5. 車を運転すると、エンジン音が自動的に加速度と速度に合わせて変化します
+6. センサーステータス表示でGPSと加速度センサーの接続状態を確認できます
+
 ### 技術的注意事項
 
 - モバイル端末では、オーディオ再生開始にユーザー操作（ボタンタップ）が必要です
 - ブラウザや端末性能により、音色・遅延・負荷は変わる場合があります
 - Web Audio API の AudioWorklet を使用した低遅延・高品質な音声合成を実現
+- **実車モードの要件**:
+  - GPSと加速度センサーへのアクセスにはHTTPS接続が必要
+  - 速度測定にはGPS許可が必要
+  - 加速度検出にはモーションセンサー許可が必要（iOS 13以降は明示的な許可が必要）
+  - デバイスを車両に確実に固定した状態で使用するのが最適
 
 ### アーキテクチャ
 
