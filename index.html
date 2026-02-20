@@ -10,7 +10,7 @@
 <body>
   <div class="container" role="main">
     <h1>Engine Simulator</h1>
-    
+
     <div class="dashboard" role="region" aria-label="Engine status display">
       <!-- Circular RPM Gauge -->
       <div class="rpm-gauge-circular">
@@ -36,6 +36,12 @@
           <text x="100" y="110" text-anchor="middle" class="rpm-text" id="rpm-value">0</text>
           <text x="100" y="130" text-anchor="middle" class="rpm-unit">RPM</text>
         </svg>
+      </div>
+
+      <!-- Main Controls (moved above speed display) -->
+      <div class="main-controls">
+        <button id="start-btn" aria-label="Start or stop engine">Start Engine</button>
+        <button id="pedal-btn" class="pedal" aria-label="Gas pedal - hold to accelerate">🚀 GAS PEDAL</button>
       </div>
 
       <!-- Speed and Gear Display -->
@@ -91,11 +97,6 @@
     </div>
 
     <div class="controls" role="region" aria-label="Engine controls">
-      <div class="main-controls">
-        <button id="start-btn" aria-label="Start or stop engine">Start Engine</button>
-        <button id="pedal-btn" class="pedal" aria-label="Gas pedal - hold to accelerate">🚀 GAS PEDAL</button>
-        <button id="launch-btn" class="launch-control" aria-label="Launch control">⚡ LAUNCH</button>
-      </div>
       <p id="status" role="status" aria-live="polite">Ready</p>
 
       <div class="settings" role="region" aria-label="Engine parameters">
@@ -181,7 +182,6 @@
           <li><strong>SPACE / ↑ / W</strong> - Accelerate</li>
           <li><strong>1-6</strong> - Shift gears</li>
           <li><strong>N</strong> - Neutral</li>
-          <li><strong>L</strong> - Launch Control</li>
         </ul>
       </div>
     </div>

@@ -195,7 +195,6 @@ const speedDisplay = document.getElementById('speed-value');
 const gearDisplay = document.getElementById('gear-value');
 const accelTimeDisplay = document.getElementById('accel-time');
 const topSpeedDisplay = document.getElementById('top-speed');
-const launchButton = document.getElementById('launch-btn');
 
 // Gear button elements
 const gearButtons = document.querySelectorAll('.gear-btn');
@@ -208,10 +207,6 @@ const performanceStats = {
   topSpeed: 0,
   hasReached100: false
 };
-
-// Launch control
-let launchControlActive = false;
-let launchControlRPM = 4000;
 
 // Controls
 const ncylInput = document.getElementById('ncyl');
@@ -418,27 +413,6 @@ function updateGearButtons() {
   });
 }
 
-// Launch control
-if (launchButton) {
-  launchButton.addEventListener('click', () => {
-    if (!isPlaying) return;
-
-    if (!launchControlActive) {
-      launchControlActive = true;
-      launchButton.classList.add('active');
-      launchButton.textContent = '⚡ LAUNCH ACTIVE';
-      statusText.textContent = 'Launch Control Active - Hold at ' + launchControlRPM + ' RPM';
-      setThrottle(1.0);
-    } else {
-      launchControlActive = false;
-      launchButton.classList.remove('active');
-      launchButton.textContent = '⚡ LAUNCH';
-      statusText.textContent = 'Running';
-      setThrottle(0.0);
-    }
-  });
-}
-
 // Update RPM gauge arc
 function updateRPMGauge(rpm, redline) {
   if (!rpmArc || rpmArcLength === 0) return;
@@ -547,24 +521,6 @@ function update() {
 
   const nowTime = performance.now();
   lastUpdateTime = nowTime;
-
-  // Launch control: limit RPM and prevent gear engagement
-  if (launchControlActive) {
-    const targetLaunchRpm = launchControlRPM;
-    params.currentRpm = params.currentRpm * 0.95 + targetLaunchRpm * 0.05;
-    params.currentThrottle = 1.0;
-    vehicleState.speed = 0;
-
-    // Update UI
-    rpmDisplay.textContent = Math.round(params.currentRpm);
-    updateRPMGauge(params.currentRpm, params.redlineRpm);
-    updateShiftLights(params.currentRpm, params.redlineRpm);
-    throttleFill.style.width = `${params.currentThrottle * 100}%`;
-    if (speedDisplay) speedDisplay.textContent = '0';
-
-    requestAnimationFrame(update);
-    return;
-  }
 
   // Physics: Update Throttle
   const throttleDiff = params.targetThrottle - params.currentThrottle;
@@ -721,22 +677,6 @@ window.addEventListener('keydown', (e) => {
     gearInput.value = 0;
     adjustRpmForGearChange();
     updateGearButtons();
-  }
-  // Launch control with L key
-  if (e.code === 'KeyL' && isPlaying) {
-    if (!launchControlActive) {
-      launchControlActive = true;
-      launchButton.classList.add('active');
-      launchButton.textContent = '⚡ LAUNCH ACTIVE';
-      statusText.textContent = 'Launch Control Active - Hold at ' + launchControlRPM + ' RPM';
-      setThrottle(1.0);
-    } else {
-      launchControlActive = false;
-      launchButton.classList.remove('active');
-      launchButton.textContent = '⚡ LAUNCH';
-      statusText.textContent = 'Running';
-      setThrottle(0.0);
-    }
   }
 });
 
