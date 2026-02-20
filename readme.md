@@ -144,12 +144,35 @@ HARMONIC_COUNT: 32  // Default: 24
 - Additional engine modes (rotary, diesel, electric motor simulation)
 - Recording and playback functionality
 - Visual spectrum analyzer
+- Native mobile applications (iOS/Android)
+- Progressive Web App (PWA) for offline use
+
+### Project Documentation
+
+For comprehensive project information, refer to:
+- **[REQUIREMENTS.md](REQUIREMENTS.md)** - Complete requirements definition document
+- **[AI_INSTRUCTIONS.md](AI_INSTRUCTIONS.md)** - Instructions for creating mobile version
+- **[.claude/context.md](.claude/context.md)** - Technical architecture and development guide
+
+### Mobile Support
+
+This application works on mobile browsers but is optimized for desktop use. For information about creating a fully mobile-optimized version:
+- See [AI_INSTRUCTIONS.md](AI_INSTRUCTIONS.md) for complete mobile implementation guide
+- Key mobile considerations:
+  - Touch-optimized controls (minimum 48x48dp touch targets)
+  - Performance optimization (reduced harmonics for mobile)
+  - Progressive Web App (PWA) for installable experience
+  - Battery optimization with Wake Lock API
+  - Responsive layout for all screen sizes
+  - Gesture support (swipe for gear shifting)
 
 ### Technologies
 
 - Vanilla JavaScript (no frameworks)
 - Web Audio API with AudioWorklet
 - HTML5 and CSS3
+- SVG for gauges and visualizations
+- localStorage for settings persistence
 
 ---
 
@@ -294,9 +317,32 @@ HARMONIC_COUNT: 32  // デフォルト: 24
 - 追加のエンジンモード（ロータリー、ディーゼル、電気モーターシミュレーション）
 - 録音および再生機能
 - ビジュアルスペクトラムアナライザー
+- ネイティブモバイルアプリケーション（iOS/Android）
+- オフライン使用のためのプログレッシブウェブアプリ（PWA）
+
+### プロジェクトドキュメント
+
+包括的なプロジェクト情報については、以下を参照してください：
+- **[REQUIREMENTS.md](REQUIREMENTS.md)** - 完全な要件定義書
+- **[AI_INSTRUCTIONS.md](AI_INSTRUCTIONS.md)** - モバイル版作成のための指示書
+- **[.claude/context.md](.claude/context.md)** - 技術アーキテクチャと開発ガイド
+
+### モバイルサポート
+
+このアプリケーションはモバイルブラウザでも動作しますが、デスクトップ用に最適化されています。完全にモバイル最適化されたバージョンの作成については：
+- 完全なモバイル実装ガイドは [AI_INSTRUCTIONS.md](AI_INSTRUCTIONS.md) を参照
+- 主なモバイル対応項目：
+  - タッチ最適化コントロール（最小48x48dpのタッチターゲット）
+  - パフォーマンス最適化（モバイル用にハーモニクス数を削減）
+  - インストール可能なエクスペリエンスのためのプログレッシブウェブアプリ（PWA）
+  - Wake Lock APIによるバッテリー最適化
+  - すべての画面サイズに対応するレスポンシブレイアウト
+  - ジェスチャーサポート（ギアシフト用のスワイプ）
 
 ### 使用技術
 
 - Vanilla JavaScript（フレームワーク不使用）
 - Web Audio API（AudioWorklet使用）
 - HTML5 & CSS3
+- SVG によるゲージと可視化
+- localStorage による設定の永続化
