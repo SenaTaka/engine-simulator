@@ -104,7 +104,8 @@ const CONFIG = {
     reverbEnabled: false,
     reverbAmount: 0.3,
     load: 0.0,
-    roadLoad: 0.0
+    roadLoad: 0.0,
+    realVehicleMode: false
   }
 };
 
@@ -160,7 +161,8 @@ const params = {
   reverbEnabled: CONFIG.defaults.reverbEnabled,
   reverbAmount: CONFIG.defaults.reverbAmount,
   load: CONFIG.defaults.load,
-  roadLoad: CONFIG.defaults.roadLoad
+  roadLoad: CONFIG.defaults.roadLoad,
+  realVehicleMode: CONFIG.defaults.realVehicleMode
 };
 
 // Vehicle state for simple load and speed modeling
@@ -168,6 +170,18 @@ const vehicleState = {
   speed: 0, // m/s
   gear: 1,
   ...CONFIG.vehicle
+};
+
+// Real vehicle mode sensor state
+const sensorState = {
+  gpsSpeed: 0, // m/s from GPS
+  gpsAccuracy: null,
+  acceleration: { x: 0, y: 0, z: 0 }, // m/s^2 from accelerometer
+  lastGPSTime: 0,
+  lastAccelTime: 0,
+  watchId: null,
+  hasGPS: false,
+  hasAccelerometer: false
 };
 
 let lastUpdateTime = performance.now();
@@ -222,6 +236,8 @@ const reverbEnabledInput = document.getElementById('reverb-enabled');
 const reverbAmountInput = document.getElementById('reverb-amount');
 const gearInput = document.getElementById('gear');
 const roadLoadInput = document.getElementById('load');
+const realVehicleModeInput = document.getElementById('real-vehicle-mode');
+const sensorStatusDisplay = document.getElementById('sensor-status');
 
 /**
  * Apply a predefined engine preset
@@ -355,6 +371,156 @@ async function createReverbImpulse(audioContext, duration = CONFIG.reverb.durati
   return impulse;
 }
 
+/**
+ * Initialize GPS sensor for real vehicle mode
+ */
+function startGPSSensor() {
+  if (!navigator.geolocation) {
+    console.warn('Geolocation is not supported');
+    return false;
+  }
+
+  const options = {
+    enableHighAccuracy: true,
+    timeout: 5000,
+    maximumAge: 0
+  };
+
+  sensorState.watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      sensorState.gpsSpeed = position.coords.speed || 0; // speed in m/s
+      sensorState.gpsAccuracy = position.coords.accuracy;
+      sensorState.lastGPSTime = Date.now();
+      sensorState.hasGPS = true;
+      updateSensorStatus();
+    },
+    (error) => {
+      console.warn('GPS error:', error.message);
+      sensorState.hasGPS = false;
+      updateSensorStatus();
+    },
+    options
+  );
+
+  return true;
+}
+
+/**
+ * Initialize accelerometer for real vehicle mode
+ */
+function startAccelerometer() {
+  if (!window.DeviceMotionEvent) {
+    console.warn('DeviceMotion is not supported');
+    return false;
+  }
+
+  // Request permission for iOS 13+ devices
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    DeviceMotionEvent.requestPermission()
+      .then(permissionState => {
+        if (permissionState === 'granted') {
+          attachAccelerometerListener();
+        } else {
+          console.warn('DeviceMotion permission denied');
+          sensorState.hasAccelerometer = false;
+          updateSensorStatus();
+        }
+      })
+      .catch(console.error);
+  } else {
+    attachAccelerometerListener();
+  }
+
+  return true;
+}
+
+/**
+ * Attach accelerometer event listener
+ */
+function attachAccelerometerListener() {
+  window.addEventListener('devicemotion', (event) => {
+    if (event.acceleration) {
+      sensorState.acceleration.x = event.acceleration.x || 0;
+      sensorState.acceleration.y = event.acceleration.y || 0;
+      sensorState.acceleration.z = event.acceleration.z || 0;
+      sensorState.lastAccelTime = Date.now();
+      sensorState.hasAccelerometer = true;
+      updateSensorStatus();
+    }
+  });
+}
+
+/**
+ * Stop GPS sensor
+ */
+function stopGPSSensor() {
+  if (sensorState.watchId !== null) {
+    navigator.geolocation.clearWatch(sensorState.watchId);
+    sensorState.watchId = null;
+  }
+  sensorState.hasGPS = false;
+  sensorState.gpsSpeed = 0;
+  updateSensorStatus();
+}
+
+/**
+ * Update sensor status display
+ */
+function updateSensorStatus() {
+  if (!sensorStatusDisplay) return;
+
+  if (params.realVehicleMode) {
+    const gpsStatus = sensorState.hasGPS ? '📍GPS' : '❌GPS';
+    const accelStatus = sensorState.hasAccelerometer ? '📊Accel' : '❌Accel';
+    sensorStatusDisplay.textContent = `${gpsStatus} ${accelStatus}`;
+    sensorStatusDisplay.style.color = (sensorState.hasGPS && sensorState.hasAccelerometer) ? '#4CAF50' : '#ff9800';
+  } else {
+    sensorStatusDisplay.textContent = 'Off';
+    sensorStatusDisplay.style.color = '#666';
+  }
+}
+
+/**
+ * Estimate throttle position from sensor data
+ * Uses GPS speed and accelerometer data to estimate driver input
+ * @returns {number} Estimated throttle (0-1)
+ */
+function estimateThrottleFromSensors() {
+  // If no sensor data available, return 0
+  if (!sensorState.hasGPS && !sensorState.hasAccelerometer) {
+    return 0;
+  }
+
+  // Calculate forward acceleration (assuming device is in portrait mode)
+  // Positive acceleration.y typically means forward acceleration
+  const forwardAccel = sensorState.acceleration.y || 0;
+
+  // Use GPS speed to determine if vehicle is accelerating or decelerating
+  const speed = sensorState.gpsSpeed || 0; // m/s
+
+  // Estimate throttle based on acceleration
+  // Positive acceleration suggests throttle application
+  // Typical vehicle acceleration: 0-5 m/s² for normal driving, up to 8-10 m/s² for performance cars
+  let estimatedThrottle = 0;
+
+  if (forwardAccel > 0.5) {
+    // Accelerating - map acceleration to throttle
+    // 0.5 m/s² = light throttle, 5 m/s² = full throttle
+    estimatedThrottle = Math.min(1.0, Math.max(0, (forwardAccel - 0.5) / 4.5));
+  } else if (forwardAccel < -0.5 && speed > 1) {
+    // Decelerating while moving - completely off throttle
+    estimatedThrottle = 0;
+  } else if (speed < 1 && Math.abs(forwardAccel) < 0.5) {
+    // Vehicle stopped or very slow - idle
+    estimatedThrottle = 0;
+  } else {
+    // Cruising - maintain slight throttle
+    estimatedThrottle = 0.15;
+  }
+
+  return estimatedThrottle;
+}
+
 perspectiveInput.addEventListener('change', () => {
   params.audioPerspective = perspectiveInput.value;
   applyEQPerspective(params.audioPerspective);
@@ -378,6 +544,33 @@ reverbEnabledInput.addEventListener('change', () => {
 reverbAmountInput.addEventListener('input', () => {
   params.reverbAmount = parseFloat(reverbAmountInput.value);
   updateReverb();
+});
+
+realVehicleModeInput.addEventListener('change', () => {
+  params.realVehicleMode = realVehicleModeInput.checked;
+
+  if (params.realVehicleMode) {
+    // Start sensors
+    startGPSSensor();
+    startAccelerometer();
+    // Disable manual throttle controls
+    if (pedal) {
+      pedal.disabled = true;
+      pedal.style.opacity = '0.5';
+    }
+  } else {
+    // Stop sensors
+    stopGPSSensor();
+    // Re-enable manual throttle controls
+    if (pedal) {
+      pedal.disabled = false;
+      pedal.style.opacity = '1';
+    }
+    // Reset throttle
+    params.targetThrottle = 0;
+  }
+
+  updateSensorStatus();
 });
 
 roadLoadInput.addEventListener('input', () => {
@@ -522,6 +715,12 @@ function update() {
   const nowTime = performance.now();
   lastUpdateTime = nowTime;
 
+  // In real vehicle mode, estimate throttle from sensors
+  if (params.realVehicleMode) {
+    const sensorThrottle = estimateThrottleFromSensors();
+    params.targetThrottle = sensorThrottle;
+  }
+
   // Physics: Update Throttle
   const throttleDiff = params.targetThrottle - params.currentThrottle;
   params.currentThrottle += throttleDiff * params.throttleResponse;
@@ -659,6 +858,9 @@ const setThrottle = (val) => {
 };
 
 window.addEventListener('keydown', (e) => {
+  // Disable manual throttle control in real vehicle mode
+  if (params.realVehicleMode) return;
+
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
     e.preventDefault();
     setThrottle(1.0);
@@ -681,6 +883,9 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keyup', (e) => {
+  // Disable manual throttle control in real vehicle mode
+  if (params.realVehicleMode) return;
+
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
     e.preventDefault();
     setThrottle(0.0);
@@ -690,10 +895,24 @@ window.addEventListener('keyup', (e) => {
 // Mobile / Touch support
 const pedal = document.getElementById('pedal-btn');
 if(pedal) {
-    pedal.addEventListener('mousedown', () => setThrottle(1.0));
-    pedal.addEventListener('mouseup', () => setThrottle(0.0));
-    pedal.addEventListener('touchstart', (e) => { e.preventDefault(); setThrottle(1.0); });
-    pedal.addEventListener('touchend', (e) => { e.preventDefault(); setThrottle(0.0); });
+    pedal.addEventListener('mousedown', () => {
+      if (!params.realVehicleMode) setThrottle(1.0);
+    });
+    pedal.addEventListener('mouseup', () => {
+      if (!params.realVehicleMode) setThrottle(0.0);
+    });
+    pedal.addEventListener('touchstart', (e) => {
+      if (!params.realVehicleMode) {
+        e.preventDefault();
+        setThrottle(1.0);
+      }
+    });
+    pedal.addEventListener('touchend', (e) => {
+      if (!params.realVehicleMode) {
+        e.preventDefault();
+        setThrottle(0.0);
+      }
+    });
 }
 
 // Start Audio
@@ -814,7 +1033,8 @@ function saveSettings() {
       reverbAmount: params.reverbAmount,
       roadLoad: params.roadLoad,
       load: params.roadLoad,
-      gear: vehicleState.gear
+      gear: vehicleState.gear,
+      realVehicleMode: params.realVehicleMode
     };
     localStorage.setItem('engineSimulatorSettings', JSON.stringify(settings));
   } catch (e) {
@@ -852,6 +1072,11 @@ function loadSettings() {
       roadLoadInput.value = params.roadLoad;
     }
 
+    if (settings.realVehicleMode !== undefined) {
+      params.realVehicleMode = settings.realVehicleMode;
+      realVehicleModeInput.checked = settings.realVehicleMode;
+    }
+
     // Update params from loaded inputs
     params.enginePreset = settings.enginePreset || 'custom';
     params.audioPerspective = settings.audioPerspective || 'exterior';
@@ -886,3 +1111,4 @@ reverbEnabledInput.addEventListener('change', saveSettings);
 reverbAmountInput.addEventListener('change', saveSettings);
 roadLoadInput.addEventListener('change', saveSettings);
 gearInput.addEventListener('change', saveSettings);
+realVehicleModeInput.addEventListener('change', saveSettings);

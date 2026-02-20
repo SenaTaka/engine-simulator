@@ -164,6 +164,12 @@
         </div>
 
         <div class="control-group">
+          <label for="real-vehicle-mode">Real Vehicle Mode:</label>
+          <input type="checkbox" id="real-vehicle-mode" aria-label="Enable real vehicle mode using GPS and accelerometer">
+          <span id="sensor-status" class="sensor-status">Off</span>
+        </div>
+
+        <div class="control-group">
           <label for="compressor-enabled">Compressor:</label>
           <input type="checkbox" id="compressor-enabled" aria-label="Enable compressor effect">
           <input type="range" id="compressor-amount" min="0" max="1" step="0.01" value="0.5" aria-label="Compressor amount">

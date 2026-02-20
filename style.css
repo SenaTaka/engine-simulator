@@ -9,6 +9,15 @@ body {
   margin: 0;
 }
 
+.sensor-status {
+  font-size: 0.9rem;
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.3);
+  font-family: monospace;
+}
+
 .container {
   background: linear-gradient(145deg, #1e1e2e 0%, #2a2a3e 100%);
   padding: 2rem;
