@@ -11,6 +11,16 @@
   <div class="container" role="main">
     <h1>Engine Simulator</h1>
 
+    <!-- Real Vehicle Mode Toggle (prominent, top of page) -->
+    <div class="real-vehicle-toggle-bar" id="real-vehicle-toggle-bar">
+      <span class="real-vehicle-toggle-label">🚗 Real Vehicle Mode</span>
+      <label class="toggle-switch" aria-label="Enable real vehicle mode using GPS and accelerometer">
+        <input type="checkbox" id="real-vehicle-mode-top">
+        <span class="toggle-slider"></span>
+      </label>
+      <span id="sensor-status-top" class="sensor-status">Off</span>
+    </div>
+
     <div class="dashboard" role="region" aria-label="Engine status display">
       <!-- Real Vehicle Speed Display (shown only in real vehicle mode) -->
       <div id="real-vehicle-speed-display" class="real-vehicle-speed-display" style="display:none;" aria-label="Real vehicle GPS speed">

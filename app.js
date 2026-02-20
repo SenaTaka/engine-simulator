@@ -246,13 +246,42 @@ const reverbAmountInput = document.getElementById('reverb-amount');
 const gearInput = document.getElementById('gear');
 const roadLoadInput = document.getElementById('load');
 const realVehicleModeInput = document.getElementById('real-vehicle-mode');
+const realVehicleModeTopInput = document.getElementById('real-vehicle-mode-top');
 const sensorStatusDisplay = document.getElementById('sensor-status');
+const sensorStatusTopDisplay = document.getElementById('sensor-status-top');
 const realVehicleSpeedDisplay = document.getElementById('real-vehicle-speed-display');
 const gpsSpeedValueDisplay = document.getElementById('gps-speed-value');
 const realVehicleParamsSection = document.getElementById('real-vehicle-params');
 const accelThresholdInput = document.getElementById('accel-threshold');
 const accelMaxInput = document.getElementById('accel-max');
 const cruiseThrottleInput = document.getElementById('cruise-throttle');
+
+// Screen Wake Lock support
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+    } catch (e) {
+      console.warn('Wake lock request failed:', e);
+    }
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release().catch((e) => { console.warn('Wake lock release failed:', e); });
+    wakeLock = null;
+  }
+}
+
+// Re-acquire wake lock if real vehicle mode is active and page becomes visible again
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && params.realVehicleMode && (!wakeLock || wakeLock.released)) {
+    requestWakeLock();
+  }
+});
 
 /**
  * Apply a predefined engine preset
@@ -505,11 +534,21 @@ function updateSensorStatus() {
   if (params.realVehicleMode) {
     const gpsStatus = sensorState.hasGPS ? '📍GPS' : '❌GPS';
     const accelStatus = sensorState.hasAccelerometer ? '📊Accel' : '❌Accel';
-    sensorStatusDisplay.textContent = `${gpsStatus} ${accelStatus}`;
-    sensorStatusDisplay.style.color = (sensorState.hasGPS && sensorState.hasAccelerometer) ? '#4CAF50' : '#ff9800';
+    const statusText = `${gpsStatus} ${accelStatus}`;
+    const statusColor = (sensorState.hasGPS && sensorState.hasAccelerometer) ? '#4CAF50' : '#ff9800';
+    sensorStatusDisplay.textContent = statusText;
+    sensorStatusDisplay.style.color = statusColor;
+    if (sensorStatusTopDisplay) {
+      sensorStatusTopDisplay.textContent = statusText;
+      sensorStatusTopDisplay.style.color = statusColor;
+    }
   } else {
     sensorStatusDisplay.textContent = 'Off';
     sensorStatusDisplay.style.color = '#666';
+    if (sensorStatusTopDisplay) {
+      sensorStatusTopDisplay.textContent = 'Off';
+      sensorStatusTopDisplay.style.color = '#666';
+    }
   }
 }
 
@@ -580,8 +619,20 @@ reverbAmountInput.addEventListener('input', () => {
 
 realVehicleModeInput.addEventListener('change', () => {
   params.realVehicleMode = realVehicleModeInput.checked;
+  if (realVehicleModeTopInput) realVehicleModeTopInput.checked = realVehicleModeInput.checked;
+  applyRealVehicleMode(params.realVehicleMode);
+});
 
-  if (params.realVehicleMode) {
+if (realVehicleModeTopInput) {
+  realVehicleModeTopInput.addEventListener('change', () => {
+    params.realVehicleMode = realVehicleModeTopInput.checked;
+    realVehicleModeInput.checked = realVehicleModeTopInput.checked;
+    applyRealVehicleMode(params.realVehicleMode);
+  });
+}
+
+function applyRealVehicleMode(enabled) {
+  if (enabled) {
     // Start sensors
     startGPSSensor();
     startAccelerometer();
@@ -598,6 +649,8 @@ realVehicleModeInput.addEventListener('change', () => {
     // Show real vehicle speed display and params
     if (realVehicleSpeedDisplay) realVehicleSpeedDisplay.style.display = '';
     if (realVehicleParamsSection) realVehicleParamsSection.style.display = '';
+    // Request wake lock to prevent screen from sleeping
+    requestWakeLock();
   } else {
     // Stop sensors
     stopGPSSensor();
@@ -614,10 +667,12 @@ realVehicleModeInput.addEventListener('change', () => {
     // Hide real vehicle speed display and params
     if (realVehicleSpeedDisplay) realVehicleSpeedDisplay.style.display = 'none';
     if (realVehicleParamsSection) realVehicleParamsSection.style.display = 'none';
+    // Release wake lock
+    releaseWakeLock();
   }
 
   updateSensorStatus();
-});
+}
 
 accelThresholdInput.addEventListener('input', () => {
   params.accelThreshold = Math.max(0, parseFloat(accelThresholdInput.value) || CONFIG.defaults.accelThreshold);
@@ -1170,6 +1225,7 @@ function loadSettings() {
     if (settings.realVehicleMode !== undefined) {
       params.realVehicleMode = settings.realVehicleMode;
       realVehicleModeInput.checked = settings.realVehicleMode;
+      if (realVehicleModeTopInput) realVehicleModeTopInput.checked = settings.realVehicleMode;
     }
 
     // Update params from loaded inputs
