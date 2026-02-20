@@ -1,0 +1,26 @@
+{
+  "name": "Engine Simulator",
+  "short_name": "EngineSim",
+  "description": "Real-time browser-based engine sound simulator",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#00ff88",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230a0a0a'/%3E%3Ccircle cx='96' cy='96' r='70' fill='none' stroke='%2300ff88' stroke-width='12'/%3E%3Ctext x='96' y='110' text-anchor='middle' font-size='52' font-family='monospace' fill='%2300ff88'%3ERPM%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230a0a0a'/%3E%3Ccircle cx='256' cy='256' r='190' fill='none' stroke='%2300ff88' stroke-width='28'/%3E%3Ctext x='256' y='290' text-anchor='middle' font-size='130' font-family='monospace' fill='%2300ff88'%3ERPM%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["entertainment", "utilities"],
+  "lang": "en"
+}

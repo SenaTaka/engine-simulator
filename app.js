@@ -63,6 +63,20 @@ const CONFIG = {
       redlineRpm: 7400,
       inertia: 0.96,
       noiseGain: 0.42
+    },
+    v8: {
+      ncyl: 8,
+      idleRpm: 750,
+      redlineRpm: 6500,
+      inertia: 0.97,
+      noiseGain: 0.28
+    },
+    rotary: {
+      ncyl: 2,
+      idleRpm: 850,
+      redlineRpm: 9000,
+      inertia: 0.88,
+      noiseGain: 0.38
     }
   },
 
@@ -948,6 +962,8 @@ function update() {
     const fa24ModeParam = engineNode.parameters.get('fa24Mode');
     const redlineRpmParam = engineNode.parameters.get('redlineRpm');
     const loadParam = engineNode.parameters.get('load');
+    const v8ModeParam = engineNode.parameters.get('v8Mode');
+    const rotaryModeParam = engineNode.parameters.get('rotaryMode');
 
     const now = audioCtx.currentTime;
     rpmParam.setValueAtTime(params.currentRpm, now);
@@ -960,6 +976,8 @@ function update() {
     fa24ModeParam.setValueAtTime(params.enginePreset === 'fa24' ? 1 : 0, now);
     redlineRpmParam.setValueAtTime(params.redlineRpm, now);
     loadParam.setValueAtTime(params.load, now);
+    if (v8ModeParam) v8ModeParam.setValueAtTime(params.enginePreset === 'v8' ? 1 : 0, now);
+    if (rotaryModeParam) rotaryModeParam.setValueAtTime(params.enginePreset === 'rotary' ? 1 : 0, now);
   }
 
   // Update UI
@@ -1264,3 +1282,264 @@ reverbAmountInput.addEventListener('change', saveSettings);
 roadLoadInput.addEventListener('change', saveSettings);
 gearInput.addEventListener('change', saveSettings);
 realVehicleModeInput.addEventListener('change', saveSettings);
+
+// ─── Spectrum Analyzer ──────────────────────────────────────────────────────
+
+const spectrumCanvas = document.getElementById('spectrum-canvas');
+let analyserNode = null;
+let spectrumAnimId = null;
+
+/**
+ * Initialize and start the spectrum analyzer visualization
+ */
+function startSpectrumAnalyzer() {
+  if (!audioCtx || !masterGainNode || !spectrumCanvas) return;
+
+  if (!analyserNode) {
+    analyserNode = audioCtx.createAnalyser();
+    analyserNode.fftSize = 1024;
+    analyserNode.smoothingTimeConstant = 0.8;
+    masterGainNode.connect(analyserNode);
+  }
+
+  const ctx2d = spectrumCanvas.getContext('2d');
+  const bufLen = analyserNode.frequencyBinCount;
+  const dataArray = new Uint8Array(bufLen);
+
+  function drawSpectrum() {
+    spectrumAnimId = requestAnimationFrame(drawSpectrum);
+    analyserNode.getByteFrequencyData(dataArray);
+
+    const w = spectrumCanvas.clientWidth;
+    const h = spectrumCanvas.clientHeight;
+    if (spectrumCanvas.width !== w) spectrumCanvas.width = w;
+    if (spectrumCanvas.height !== h) spectrumCanvas.height = h;
+
+    ctx2d.clearRect(0, 0, w, h);
+
+    // Draw frequency bars
+    const barCount = Math.min(bufLen, 128);
+    const barW = w / barCount;
+    for (let i = 0; i < barCount; i++) {
+      const val = dataArray[i] / 255;
+      const barH = val * h;
+      // Gradient: green → yellow → red based on level
+      const r = Math.round(val > 0.6 ? 255 : val * 425);
+      const g = Math.round(val < 0.6 ? 255 : 255 * (1 - val) * 2.5);
+      ctx2d.fillStyle = `rgb(${r},${g},20)`;
+      ctx2d.fillRect(i * barW, h - barH, Math.max(1, barW - 1), barH);
+    }
+  }
+
+  if (spectrumAnimId) cancelAnimationFrame(spectrumAnimId);
+  drawSpectrum();
+}
+
+function stopSpectrumAnalyzer() {
+  if (spectrumAnimId) {
+    cancelAnimationFrame(spectrumAnimId);
+    spectrumAnimId = null;
+  }
+  if (spectrumCanvas) {
+    const ctx2d = spectrumCanvas.getContext('2d');
+    ctx2d.clearRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
+  }
+}
+
+// ─── Audio Recording ────────────────────────────────────────────────────────
+
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+const recordBtn = document.getElementById('record-btn');
+
+/**
+ * Start or stop recording engine audio
+ */
+function toggleRecording() {
+  if (!isRecording) {
+    if (!audioCtx || !masterGainNode) {
+      alert('Please start the engine before recording.');
+      return;
+    }
+    // Create a MediaStreamDestination to capture the audio graph output
+    const dest = audioCtx.createMediaStreamDestination();
+    masterGainNode.connect(dest);
+
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : 'audio/webm';
+
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(dest.stream, { mimeType });
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      masterGainNode.disconnect(dest);
+      const blob = new Blob(recordedChunks, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ext = mimeType.includes('webm') ? 'webm' : 'wav';
+      a.download = `engine-sound-${Date.now()}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    if (recordBtn) {
+      recordBtn.textContent = '⏹ Stop';
+      recordBtn.classList.add('recording');
+    }
+  } else {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    isRecording = false;
+    if (recordBtn) {
+      recordBtn.textContent = '⏺ Record';
+      recordBtn.classList.remove('recording');
+    }
+  }
+}
+
+if (recordBtn) {
+  recordBtn.addEventListener('click', toggleRecording);
+}
+
+// ─── URL Preset Sharing ──────────────────────────────────────────────────────
+
+const shareBtn = document.getElementById('share-btn');
+
+/**
+ * Encode current engine settings into a URL hash and copy/share it
+ */
+function shareSettings() {
+  const data = {
+    ncyl: params.ncyl,
+    idle: params.idleRpm,
+    red: params.redlineRpm,
+    iner: params.inertia,
+    noise: params.noiseGain,
+    preset: params.enginePreset,
+    persp: params.audioPerspective,
+    load: params.roadLoad
+  };
+  const encoded = btoa(JSON.stringify(data));
+  const url = `${location.origin}${location.pathname}#s=${encoded}`;
+
+  if (navigator.share) {
+    navigator.share({ title: 'Engine Simulator Settings', url })
+      .catch(() => fallbackCopyShare(url));
+  } else {
+    fallbackCopyShare(url);
+  }
+}
+
+function fallbackCopyShare(url) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => {
+      const orig = shareBtn.textContent;
+      shareBtn.textContent = '✅ Copied!';
+      setTimeout(() => { shareBtn.textContent = orig; }, 2000);
+    }).catch(() => prompt('Copy this URL to share your settings:', url));
+  } else {
+    prompt('Copy this URL to share your settings:', url);
+  }
+}
+
+/**
+ * Load engine settings encoded in the URL hash (from a shared link)
+ */
+function loadSettingsFromURL() {
+  const hash = location.hash;
+  const match = hash.match(/[#&]s=([^&]+)/);
+  if (!match) return;
+  try {
+    const data = JSON.parse(atob(match[1]));
+    if (data.ncyl !== undefined) ncylInput.value = data.ncyl;
+    if (data.idle !== undefined) idleRpmInput.value = data.idle;
+    if (data.red !== undefined) redlineRpmInput.value = data.red;
+    if (data.iner !== undefined) inertiaInput.value = data.iner;
+    if (data.noise !== undefined) noiseInput.value = data.noise;
+    if (data.preset !== undefined) {
+      presetInput.value = data.preset;
+      params.enginePreset = data.preset;
+    }
+    if (data.persp !== undefined) {
+      perspectiveInput.value = data.persp;
+      params.audioPerspective = data.persp;
+    }
+    if (data.load !== undefined) {
+      roadLoadInput.value = data.load;
+      params.roadLoad = data.load;
+    }
+    updateParamsFromUI();
+  } catch (e) {
+    console.warn('Failed to load settings from URL:', e);
+  }
+}
+
+if (shareBtn) {
+  shareBtn.addEventListener('click', shareSettings);
+}
+
+// Load from URL hash on startup (overrides localStorage if present)
+loadSettingsFromURL();
+
+// ─── PWA Install Prompt ──────────────────────────────────────────────────────
+
+let deferredInstallPrompt = null;
+const installBar = document.getElementById('install-bar');
+const installBtn = document.getElementById('install-btn');
+const installDismiss = document.getElementById('install-dismiss');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (installBar) installBar.style.display = 'flex';
+});
+
+if (installBtn) {
+  installBtn.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    if (installBar) installBar.style.display = 'none';
+  });
+}
+
+if (installDismiss) {
+  installDismiss.addEventListener('click', () => {
+    if (installBar) installBar.style.display = 'none';
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  if (installBar) installBar.style.display = 'none';
+  deferredInstallPrompt = null;
+});
+
+// ─── Service Worker Registration ─────────────────────────────────────────────
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch((e) => {
+    console.warn('Service worker registration failed:', e);
+  });
+}
+
+// ─── Hook spectrum analyzer into engine start/stop ───────────────────────────
+
+const _origStartClick = startButton.onclick;
+startButton.addEventListener('click', () => {
+  // After start button click, check if engine started and hook analyzer
+  setTimeout(() => {
+    if (isPlaying) {
+      startSpectrumAnalyzer();
+    } else {
+      stopSpectrumAnalyzer();
+      if (isRecording) toggleRecording();
+    }
+  }, 200);
+});
