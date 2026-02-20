@@ -1320,12 +1320,15 @@ function startSpectrumAnalyzer() {
     // Draw frequency bars
     const barCount = Math.min(bufLen, 128);
     const barW = w / barCount;
+    // Green (0) → Yellow (0.6) → Red (1.0) gradient thresholds
+    const YELLOW_THRESHOLD = 0.6;
+    const RED_SCALE = 255 / YELLOW_THRESHOLD;      // maps 0–0.6 to 0–255 for red channel
+    const GREEN_DECAY = 1 / (1 - YELLOW_THRESHOLD); // maps 0.6–1.0 to 255–0 for green channel
     for (let i = 0; i < barCount; i++) {
       const val = dataArray[i] / 255;
       const barH = val * h;
-      // Gradient: green → yellow → red based on level
-      const r = Math.round(val > 0.6 ? 255 : val * 425);
-      const g = Math.round(val < 0.6 ? 255 : 255 * (1 - val) * 2.5);
+      const r = Math.round(val > YELLOW_THRESHOLD ? 255 : val * RED_SCALE);
+      const g = Math.round(val < YELLOW_THRESHOLD ? 255 : 255 * (1 - val) * GREEN_DECAY);
       ctx2d.fillStyle = `rgb(${r},${g},20)`;
       ctx2d.fillRect(i * barW, h - barH, Math.max(1, barW - 1), barH);
     }
@@ -1392,7 +1395,7 @@ function toggleRecording() {
       recordBtn.classList.add('recording');
     }
   } else {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    if (mediaRecorder?.state !== 'inactive') {
       mediaRecorder.stop();
     }
     isRecording = false;
@@ -1531,7 +1534,6 @@ if ('serviceWorker' in navigator) {
 
 // ─── Hook spectrum analyzer into engine start/stop ───────────────────────────
 
-const _origStartClick = startButton.onclick;
 startButton.addEventListener('click', () => {
   // After start button click, check if engine started and hook analyzer
   setTimeout(() => {

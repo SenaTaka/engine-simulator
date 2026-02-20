@@ -414,7 +414,6 @@ class EngineProcessor extends AudioWorkletProcessor {
         signal = signal * (1.0 - 0.3 * rotaryMode) + rotaryLayer * (0.7 * rotaryMode);
       }
 
-
       const white = (Math.random() * 2.0 - 1.0);
 
       // Load-dependent noise: under load, engine produces more mechanical and combustion noise
