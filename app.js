@@ -105,7 +105,10 @@ const CONFIG = {
     reverbAmount: 0.3,
     load: 0.0,
     roadLoad: 0.0,
-    realVehicleMode: false
+    realVehicleMode: false,
+    accelThreshold: 0.5,
+    accelMax: 5.0,
+    cruiseThrottle: 0.15
   }
 };
 
@@ -162,7 +165,10 @@ const params = {
   reverbAmount: CONFIG.defaults.reverbAmount,
   load: CONFIG.defaults.load,
   roadLoad: CONFIG.defaults.roadLoad,
-  realVehicleMode: CONFIG.defaults.realVehicleMode
+  realVehicleMode: CONFIG.defaults.realVehicleMode,
+  accelThreshold: CONFIG.defaults.accelThreshold,
+  accelMax: CONFIG.defaults.accelMax,
+  cruiseThrottle: CONFIG.defaults.cruiseThrottle
 };
 
 // Vehicle state for simple load and speed modeling
@@ -238,6 +244,12 @@ const gearInput = document.getElementById('gear');
 const roadLoadInput = document.getElementById('load');
 const realVehicleModeInput = document.getElementById('real-vehicle-mode');
 const sensorStatusDisplay = document.getElementById('sensor-status');
+const realVehicleSpeedDisplay = document.getElementById('real-vehicle-speed-display');
+const gpsSpeedValueDisplay = document.getElementById('gps-speed-value');
+const realVehicleParamsSection = document.getElementById('real-vehicle-params');
+const accelThresholdInput = document.getElementById('accel-threshold');
+const accelMaxInput = document.getElementById('accel-max');
+const cruiseThrottleInput = document.getElementById('cruise-throttle');
 
 /**
  * Apply a predefined engine preset
@@ -503,19 +515,18 @@ function estimateThrottleFromSensors() {
   // Typical vehicle acceleration: 0-5 m/s² for normal driving, up to 8-10 m/s² for performance cars
   let estimatedThrottle = 0;
 
-  if (forwardAccel > 0.5) {
+  if (forwardAccel > params.accelThreshold) {
     // Accelerating - map acceleration to throttle
-    // 0.5 m/s² = light throttle, 5 m/s² = full throttle
-    estimatedThrottle = Math.min(1.0, Math.max(0, (forwardAccel - 0.5) / 4.5));
-  } else if (forwardAccel < -0.5 && speed > 1) {
+    estimatedThrottle = Math.min(1.0, Math.max(0, (forwardAccel - params.accelThreshold) / (params.accelMax - params.accelThreshold)));
+  } else if (forwardAccel < -params.accelThreshold && speed > 1) {
     // Decelerating while moving - completely off throttle
     estimatedThrottle = 0;
-  } else if (speed < 1 && Math.abs(forwardAccel) < 0.5) {
+  } else if (speed < 1 && Math.abs(forwardAccel) < params.accelThreshold) {
     // Vehicle stopped or very slow - idle
     estimatedThrottle = 0;
   } else {
     // Cruising - maintain slight throttle
-    estimatedThrottle = 0.15;
+    estimatedThrottle = params.cruiseThrottle;
   }
 
   return estimatedThrottle;
@@ -558,6 +569,9 @@ realVehicleModeInput.addEventListener('change', () => {
       pedal.disabled = true;
       pedal.style.opacity = '0.5';
     }
+    // Show real vehicle speed display and params
+    if (realVehicleSpeedDisplay) realVehicleSpeedDisplay.style.display = '';
+    if (realVehicleParamsSection) realVehicleParamsSection.style.display = '';
   } else {
     // Stop sensors
     stopGPSSensor();
@@ -568,9 +582,30 @@ realVehicleModeInput.addEventListener('change', () => {
     }
     // Reset throttle
     params.targetThrottle = 0;
+    // Hide real vehicle speed display and params
+    if (realVehicleSpeedDisplay) realVehicleSpeedDisplay.style.display = 'none';
+    if (realVehicleParamsSection) realVehicleParamsSection.style.display = 'none';
   }
 
   updateSensorStatus();
+});
+
+accelThresholdInput.addEventListener('input', () => {
+  params.accelThreshold = Math.max(0, parseFloat(accelThresholdInput.value) || CONFIG.defaults.accelThreshold);
+  // Ensure accelMax remains greater than accelThreshold
+  if (params.accelMax <= params.accelThreshold + 0.1) {
+    params.accelMax = params.accelThreshold + 0.1;
+    accelMaxInput.value = params.accelMax.toFixed(1);
+  }
+});
+
+accelMaxInput.addEventListener('input', () => {
+  params.accelMax = Math.max(params.accelThreshold + 0.1, parseFloat(accelMaxInput.value) || CONFIG.defaults.accelMax);
+  accelMaxInput.value = params.accelMax;
+});
+
+cruiseThrottleInput.addEventListener('input', () => {
+  params.cruiseThrottle = Math.max(0, Math.min(0.5, parseFloat(cruiseThrottleInput.value) || CONFIG.defaults.cruiseThrottle));
 });
 
 roadLoadInput.addEventListener('input', () => {
@@ -828,6 +863,11 @@ function update() {
   }
   if (gearDisplay) {
     gearDisplay.textContent = vehicleState.gear <= 0 ? 'N' : vehicleState.gear;
+  }
+
+  // Update real vehicle GPS speed display
+  if (params.realVehicleMode && gpsSpeedValueDisplay) {
+    gpsSpeedValueDisplay.textContent = Math.round(sensorState.gpsSpeed * 3.6);
   }
 
   // Update performance metrics

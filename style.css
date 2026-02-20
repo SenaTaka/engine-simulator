@@ -9,6 +9,32 @@ body {
   margin: 0;
 }
 
+/* Real Vehicle Speed Display */
+.real-vehicle-speed-display {
+  background: rgba(0, 100, 200, 0.2);
+  border: 2px solid rgba(0, 200, 255, 0.5);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.real-vehicle-speed-value {
+  font-size: 3rem;
+  font-weight: bold;
+  color: #00ccff;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 15px rgba(0, 204, 255, 0.7);
+}
+
+.real-vehicle-speed-label {
+  font-size: 0.85rem;
+  color: #88ccff;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-top: 0.25rem;
+}
+
 .sensor-status {
   font-size: 0.9rem;
   margin-left: 0.5rem;
