@@ -175,6 +175,11 @@ let lastUpdateTime = performance.now();
 // UI Elements
 const rpmDisplay = document.getElementById('rpm-value');
 const rpmArc = document.getElementById('rpm-arc');
+const rpmArcLength = rpmArc ? rpmArc.getTotalLength() : 0;
+if (rpmArc && rpmArcLength) {
+  rpmArc.style.strokeDasharray = `${rpmArcLength} ${rpmArcLength}`;
+  rpmArc.style.strokeDashoffset = rpmArcLength;
+}
 const shiftLights = [
   document.getElementById('shift-light-1'),
   document.getElementById('shift-light-2'),
@@ -434,24 +439,11 @@ if (launchButton) {
 
 // Update RPM gauge arc
 function updateRPMGauge(rpm, redline) {
+  if (!rpmArc || rpmArcLength === 0) return;
+
   const rpmRatio = Math.min(1, Math.max(0, rpm / redline));
-  const startAngle = -140;
-  const endAngle = 140;
-  const angle = startAngle + (endAngle - startAngle) * rpmRatio;
-
-  const startRad = (startAngle * Math.PI) / 180;
-  const endRad = (angle * Math.PI) / 180;
-
-  const startX = 100 + 80 * Math.cos(startRad);
-  const startY = 100 + 80 * Math.sin(startRad);
-  const endX = 100 + 80 * Math.cos(endRad);
-  const endY = 100 + 80 * Math.sin(endRad);
-
-  const largeArc = angle - startAngle > 180 ? 1 : 0;
-
-  if (rpmArc) {
-    rpmArc.setAttribute('d', `M ${startX} ${startY} A 80 80 0 ${largeArc} 1 ${endX} ${endY}`);
-  }
+  rpmArc.style.strokeDasharray = `${rpmArcLength} ${rpmArcLength}`;
+  rpmArc.style.strokeDashoffset = rpmArcLength * (1 - rpmRatio);
 }
 
 // Update shift lights
