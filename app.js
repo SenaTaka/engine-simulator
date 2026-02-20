@@ -174,12 +174,39 @@ let lastUpdateTime = performance.now();
 
 // UI Elements
 const rpmDisplay = document.getElementById('rpm-value');
+const rpmArc = document.getElementById('rpm-arc');
+const shiftLights = [
+  document.getElementById('shift-light-1'),
+  document.getElementById('shift-light-2'),
+  document.getElementById('shift-light-3'),
+  document.getElementById('shift-light-4'),
+  document.getElementById('shift-light-5')
+];
 const throttleFill = document.getElementById('throttle-fill');
 const loadFill = document.getElementById('load-fill');
 const startButton = document.getElementById('start-btn');
 const statusText = document.getElementById('status');
 const speedDisplay = document.getElementById('speed-value');
 const gearDisplay = document.getElementById('gear-value');
+const accelTimeDisplay = document.getElementById('accel-time');
+const topSpeedDisplay = document.getElementById('top-speed');
+const launchButton = document.getElementById('launch-btn');
+
+// Gear button elements
+const gearButtons = document.querySelectorAll('.gear-btn');
+
+// Performance tracking
+const performanceStats = {
+  isTimingAccel: false,
+  accelStartTime: 0,
+  accelTime: null,
+  topSpeed: 0,
+  hasReached100: false
+};
+
+// Launch control
+let launchControlActive = false;
+let launchControlRPM = 4000;
 
 // Controls
 const ncylInput = document.getElementById('ncyl');
@@ -359,7 +386,123 @@ roadLoadInput.addEventListener('input', () => {
 
 gearInput.addEventListener('change', () => {
   vehicleState.gear = parseInt(gearInput.value, 10) || 0;
+  updateGearButtons();
 });
+
+// Gear button click handlers
+gearButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const gear = parseInt(btn.dataset.gear, 10);
+    vehicleState.gear = gear;
+    gearInput.value = gear;
+    updateGearButtons();
+  });
+});
+
+// Update active gear button
+function updateGearButtons() {
+  gearButtons.forEach(btn => {
+    const gear = parseInt(btn.dataset.gear, 10);
+    if (gear === vehicleState.gear) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+// Launch control
+if (launchButton) {
+  launchButton.addEventListener('click', () => {
+    if (!isPlaying) return;
+
+    if (!launchControlActive) {
+      launchControlActive = true;
+      launchButton.classList.add('active');
+      launchButton.textContent = '⚡ LAUNCH ACTIVE';
+      statusText.textContent = 'Launch Control Active - Hold at ' + launchControlRPM + ' RPM';
+      setThrottle(1.0);
+    } else {
+      launchControlActive = false;
+      launchButton.classList.remove('active');
+      launchButton.textContent = '⚡ LAUNCH';
+      statusText.textContent = 'Running';
+      setThrottle(0.0);
+    }
+  });
+}
+
+// Update RPM gauge arc
+function updateRPMGauge(rpm, redline) {
+  const rpmRatio = Math.min(1, Math.max(0, rpm / redline));
+  const startAngle = -140;
+  const endAngle = 140;
+  const angle = startAngle + (endAngle - startAngle) * rpmRatio;
+
+  const startRad = (startAngle * Math.PI) / 180;
+  const endRad = (angle * Math.PI) / 180;
+
+  const startX = 100 + 80 * Math.cos(startRad);
+  const startY = 100 + 80 * Math.sin(startRad);
+  const endX = 100 + 80 * Math.cos(endRad);
+  const endY = 100 + 80 * Math.sin(endRad);
+
+  const largeArc = angle - startAngle > 180 ? 1 : 0;
+
+  if (rpmArc) {
+    rpmArc.setAttribute('d', `M ${startX} ${startY} A 80 80 0 ${largeArc} 1 ${endX} ${endY}`);
+  }
+}
+
+// Update shift lights
+function updateShiftLights(rpm, redline) {
+  const rpmRatio = rpm / redline;
+  const threshold = 0.85;
+
+  shiftLights.forEach((light, index) => {
+    const lightThreshold = threshold + (index * 0.03);
+    if (rpmRatio >= lightThreshold) {
+      light.classList.add('active');
+    } else {
+      light.classList.remove('active');
+    }
+  });
+}
+
+// Track performance metrics
+function updatePerformanceMetrics(speed) {
+  const speedKmh = speed * 3.6;
+
+  // Track top speed
+  if (speedKmh > performanceStats.topSpeed) {
+    performanceStats.topSpeed = speedKmh;
+    if (topSpeedDisplay) {
+      topSpeedDisplay.textContent = Math.round(performanceStats.topSpeed) + ' km/h';
+    }
+  }
+
+  // Track 0-100 km/h time
+  if (!performanceStats.hasReached100 && speedKmh < 5 && params.currentThrottle > 0.5) {
+    // Start timing
+    if (!performanceStats.isTimingAccel) {
+      performanceStats.isTimingAccel = true;
+      performanceStats.accelStartTime = performance.now();
+      if (accelTimeDisplay) {
+        accelTimeDisplay.textContent = 'Timing...';
+      }
+    }
+  }
+
+  if (performanceStats.isTimingAccel && speedKmh >= 100) {
+    const accelTime = (performance.now() - performanceStats.accelStartTime) / 1000;
+    performanceStats.accelTime = accelTime;
+    performanceStats.isTimingAccel = false;
+    performanceStats.hasReached100 = true;
+    if (accelTimeDisplay) {
+      accelTimeDisplay.textContent = accelTime.toFixed(2) + 's';
+    }
+  }
+}
 
 function getOverallRatio() {
   if (vehicleState.gear <= 0) return 0;
@@ -391,9 +534,25 @@ function update() {
   const dt = Math.min(0.05, (nowTime - lastUpdateTime) / 1000);
   lastUpdateTime = nowTime;
 
+  // Launch control: limit RPM and prevent gear engagement
+  if (launchControlActive) {
+    const targetLaunchRpm = launchControlRPM;
+    params.currentRpm = params.currentRpm * 0.95 + targetLaunchRpm * 0.05;
+    params.currentThrottle = 1.0;
+    vehicleState.speed = 0;
+
+    // Update UI
+    rpmDisplay.textContent = Math.round(params.currentRpm);
+    updateRPMGauge(params.currentRpm, params.redlineRpm);
+    updateShiftLights(params.currentRpm, params.redlineRpm);
+    throttleFill.style.width = `${params.currentThrottle * 100}%`;
+    if (speedDisplay) speedDisplay.textContent = '0';
+
+    requestAnimationFrame(update);
+    return;
+  }
+
   // Physics: Update Throttle
-  // Smoothly interpolate current throttle to target throttle
-  // Simple easing
   const throttleDiff = params.targetThrottle - params.currentThrottle;
   params.currentThrottle += throttleDiff * params.throttleResponse;
 
@@ -408,8 +567,6 @@ function update() {
 
   const aeroDrag = 0.5 * CONFIG.physics.AIR_DENSITY * vehicleState.dragCoef * vehicleState.frontalArea * vehicleState.speed * vehicleState.speed;
   const rollingResistance = vehicleState.mass * CONFIG.physics.GRAVITY * vehicleState.rollingResistance;
-  // Grade force: roadLoad slider represents grade (0 = flat, 1 = steep hill ~25%)
-  // sin(θ) ≈ θ for small angles, so roadLoad of 0.5 = ~12-13% grade
   const gradeForce = vehicleState.mass * CONFIG.physics.GRAVITY * params.roadLoad * 0.25;
   const resistiveForce = aeroDrag + rollingResistance + gradeForce;
 
@@ -417,59 +574,42 @@ function update() {
   const accel = netForce / vehicleState.mass;
   vehicleState.speed = Math.max(0, vehicleState.speed + accel * dt);
 
-  // Determine target RPM blending free-rev and driveline-coupled RPM
   const freeTargetRpm = params.idleRpm + (params.redlineRpm - params.idleRpm) * params.currentThrottle;
   const speedCoupling = Math.min(0.4, vehicleState.speed * 0.02);
   const coupling = isCoupled ? Math.min(0.85, 0.25 + 0.35 * params.currentThrottle + speedCoupling) : 0;
   const targetRpm = isCoupled ? Math.max(params.idleRpm, drivelineRpm * coupling + freeTargetRpm * (1.0 - coupling)) : freeTargetRpm;
 
-  // Calculate engine load more realistically:
-  // Load = (actual torque demand) / (maximum available torque at current RPM)
   const rpmSpan = Math.max(1, params.redlineRpm - params.idleRpm);
   const maxTorqueAtCurrentRpm = calcEngineTorque(params.currentRpm, 1.0);
 
-  // Calculate required torque to overcome resistance
   const requiredTorque = isCoupled
     ? (resistiveForce * vehicleState.wheelRadius) / (overallRatio * vehicleState.drivelineEfficiency)
     : 0;
 
-  // Base load from resistance forces
   const resistanceLoad = maxTorqueAtCurrentRpm > 0
     ? Math.min(1.0, requiredTorque / maxTorqueAtCurrentRpm)
     : 0;
 
-  // Additional load when accelerating (inertial load)
   const inertialLoad = isCoupled && accel > 0
     ? Math.min(0.35, (vehicleState.mass * Math.abs(accel) * vehicleState.wheelRadius) / (maxTorqueAtCurrentRpm * overallRatio * vehicleState.drivelineEfficiency))
     : 0;
 
-  // RPM mismatch indicates clutch slip or gear mismatch - creates load
   const slipLoad = isCoupled && drivelineRpm > 0
     ? Math.min(0.25, Math.abs(params.currentRpm - drivelineRpm) / Math.max(1, drivelineRpm * 0.5))
     : 0;
 
-  // Final load calculation - no artificial base, purely physics-based
-  // When freewheeling (not coupled), load is minimal (just internal friction)
   if (!isCoupled) {
-    params.load = 0.05; // Minimal internal friction load
+    params.load = 0.05;
   } else {
     params.load = Math.max(0, Math.min(1, resistanceLoad + inertialLoad + slipLoad));
   }
 
-  // RPM inertia logic:
-  // Current RPM moves towards Target RPM.
-  // Speed of change depends on inertia and load.
   let effectiveInertia = params.inertia;
 
-  // When under load and accelerating, RPM changes more slowly (harder to rev up)
   if (targetRpm > params.currentRpm) {
-    // Higher load = harder to accelerate
-    // Load directly reduces available power for acceleration
     const loadResistance = Math.min(0.9, params.load * 0.7);
     effectiveInertia = params.inertia + (1.0 - params.inertia) * loadResistance;
   } else {
-    // Decelerating: load causes engine braking (faster deceleration)
-    // But inertia still matters
     const engineBraking = isCoupled ? params.load * 0.3 : 0;
     effectiveInertia = params.inertia * (1.0 - engineBraking);
   }
@@ -505,8 +645,11 @@ function update() {
 
   // Update UI
   rpmDisplay.textContent = Math.round(params.currentRpm);
+  updateRPMGauge(params.currentRpm, params.redlineRpm);
+  updateShiftLights(params.currentRpm, params.redlineRpm);
   throttleFill.style.width = `${params.currentThrottle * 100}%`;
   loadFill.style.width = `${params.load * 100}%`;
+
   if (speedDisplay) {
     speedDisplay.textContent = Math.round(vehicleState.speed * 3.6);
   }
@@ -514,16 +657,8 @@ function update() {
     gearDisplay.textContent = vehicleState.gear <= 0 ? 'N' : vehicleState.gear;
   }
 
-  // Update RPM gauge color based on proximity to redline
-  const rpmGaugeElement = rpmDisplay.parentElement;
-  const rpmRatio = params.currentRpm / params.redlineRpm;
-
-  rpmGaugeElement.classList.remove('warning', 'danger');
-  if (rpmRatio >= 0.95) {
-    rpmGaugeElement.classList.add('danger');
-  } else if (rpmRatio >= 0.85) {
-    rpmGaugeElement.classList.add('warning');
-  }
+  // Update performance metrics
+  updatePerformanceMetrics(vehicleState.speed);
 
   // Update throttle meter aria-valuenow for accessibility
   const throttleBar = document.querySelector('.throttle-bar');
@@ -551,12 +686,43 @@ const setThrottle = (val) => {
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+    e.preventDefault();
     setThrottle(1.0);
+  }
+  // Gear shifting with number keys
+  if (e.code >= 'Digit1' && e.code <= 'Digit6') {
+    const gear = parseInt(e.code.charAt(5), 10);
+    vehicleState.gear = gear;
+    gearInput.value = gear;
+    updateGearButtons();
+  }
+  // Neutral with N key
+  if (e.code === 'KeyN') {
+    vehicleState.gear = 0;
+    gearInput.value = 0;
+    updateGearButtons();
+  }
+  // Launch control with L key
+  if (e.code === 'KeyL' && isPlaying) {
+    if (!launchControlActive) {
+      launchControlActive = true;
+      launchButton.classList.add('active');
+      launchButton.textContent = '⚡ LAUNCH ACTIVE';
+      statusText.textContent = 'Launch Control Active - Hold at ' + launchControlRPM + ' RPM';
+      setThrottle(1.0);
+    } else {
+      launchControlActive = false;
+      launchButton.classList.remove('active');
+      launchButton.textContent = '⚡ LAUNCH';
+      statusText.textContent = 'Running';
+      setThrottle(0.0);
+    }
   }
 });
 
 window.addEventListener('keyup', (e) => {
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+    e.preventDefault();
     setThrottle(0.0);
   }
 });
@@ -667,6 +833,7 @@ startButton.addEventListener('click', async () => {
 
 // Initialize inputs
 updateParamsFromUI();
+updateGearButtons();
 
 /**
  * Save current settings to localStorage
