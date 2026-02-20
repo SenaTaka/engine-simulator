@@ -899,7 +899,8 @@ function update() {
     effectiveInertia = params.inertia + (1.0 - params.inertia) * loadResistance;
   } else {
     const engineBraking = isCoupled ? params.load * 0.3 : 0;
-    effectiveInertia = params.inertia * (1.0 - engineBraking);
+    // Add extra inertia when RPM is falling to simulate flywheel keeping RPM up longer
+    effectiveInertia = params.inertia + (1.0 - params.inertia) * (1.0 - engineBraking) * 0.5;
   }
 
   params.currentRpm = params.currentRpm * effectiveInertia + targetRpm * (1.0 - effectiveInertia);
