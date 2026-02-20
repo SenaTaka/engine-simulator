@@ -564,6 +564,11 @@ realVehicleModeInput.addEventListener('change', () => {
     // Start sensors
     startGPSSensor();
     startAccelerometer();
+    // Fix gear to 1st
+    vehicleState.gear = 1;
+    if (gearInput) { gearInput.value = 1; gearInput.disabled = true; }
+    gearButtons.forEach(btn => { btn.disabled = true; });
+    updateGearButtons();
     // Disable manual throttle controls
     if (pedal) {
       pedal.disabled = true;
@@ -575,6 +580,9 @@ realVehicleModeInput.addEventListener('change', () => {
   } else {
     // Stop sensors
     stopGPSSensor();
+    // Re-enable gear controls
+    if (gearInput) gearInput.disabled = false;
+    gearButtons.forEach(btn => { btn.disabled = false; });
     // Re-enable manual throttle controls
     if (pedal) {
       pedal.disabled = false;
@@ -750,8 +758,9 @@ function update() {
   const nowTime = performance.now();
   lastUpdateTime = nowTime;
 
-  // In real vehicle mode, estimate throttle from sensors
+  // In real vehicle mode: fix to 1st gear and estimate throttle from sensors
   if (params.realVehicleMode) {
+    vehicleState.gear = 1;
     const sensorThrottle = estimateThrottleFromSensors();
     params.targetThrottle = sensorThrottle;
   }
@@ -819,6 +828,14 @@ function update() {
 
   params.currentRpm = params.currentRpm * effectiveInertia + targetRpm * (1.0 - effectiveInertia);
   params.currentRpm = Math.max(params.idleRpm * 0.75, Math.min(params.currentRpm, params.redlineRpm * 1.05));
+
+  // In real vehicle mode: override RPM from GPS speed in 1st gear
+  if (params.realVehicleMode && vehicleState.gearRatios && vehicleState.gearRatios[0]) {
+    const overallRatio1st = vehicleState.gearRatios[0] * vehicleState.finalDrive;
+    const gpsSpeed = sensorState.gpsSpeed || 0;
+    const rpmFromSpeed = (gpsSpeed * overallRatio1st * 60) / (2 * Math.PI * vehicleState.wheelRadius);
+    params.currentRpm = Math.max(params.idleRpm, Math.min(rpmFromSpeed, params.redlineRpm * 1.05));
+  }
 
   // Speed is directly determined by RPM and gear ratio
   vehicleState.speed = isCoupled
