@@ -523,7 +523,6 @@ function update() {
   if (!isPlaying) return;
 
   const nowTime = performance.now();
-  const dt = Math.min(0.05, (nowTime - lastUpdateTime) / 1000);
   lastUpdateTime = nowTime;
 
   // Launch control: limit RPM and prevent gear engagement
@@ -550,8 +549,6 @@ function update() {
 
   const overallRatio = getOverallRatio();
   const isCoupled = overallRatio > 0;
-  const wheelRpm = vehicleState.speed > 0 ? (vehicleState.speed / (2 * Math.PI * vehicleState.wheelRadius)) * 60 : 0;
-  const drivelineRpm = isCoupled ? wheelRpm * overallRatio : 0;
 
   const engineTorque = calcEngineTorque(params.currentRpm, params.currentThrottle);
   const wheelTorque = isCoupled ? engineTorque * overallRatio * vehicleState.drivelineEfficiency : 0;
@@ -564,7 +561,6 @@ function update() {
 
   const netForce = isCoupled ? tractiveForce - resistiveForce : -resistiveForce;
   const accel = netForce / vehicleState.mass;
-  vehicleState.speed = Math.max(0, vehicleState.speed + accel * dt);
 
   // Calculate internal resistance proportional to RPM^1.5
   // This models pumping losses and friction that increase non-linearly with RPM
@@ -576,11 +572,8 @@ function update() {
   // Apply internal resistance to reduce target RPM, effect is stronger at higher RPM
   const resistedTargetRpm = freeTargetRpm * (1.0 - resistanceFactor * (1.0 - params.currentThrottle));
 
-  const speedCoupling = Math.min(0.4, vehicleState.speed * 0.02);
-  const coupling = isCoupled ? Math.min(0.85, 0.25 + 0.35 * params.currentThrottle + speedCoupling) : 0;
-  const targetRpm = isCoupled ? Math.max(params.idleRpm, drivelineRpm * coupling + resistedTargetRpm * (1.0 - coupling)) : resistedTargetRpm;
+  const targetRpm = Math.max(params.idleRpm, resistedTargetRpm);
 
-  const rpmSpan = Math.max(1, params.redlineRpm - params.idleRpm);
   const maxTorqueAtCurrentRpm = calcEngineTorque(params.currentRpm, 1.0);
 
   const requiredTorque = isCoupled
@@ -595,14 +588,10 @@ function update() {
     ? Math.min(0.35, (vehicleState.mass * Math.abs(accel) * vehicleState.wheelRadius) / (maxTorqueAtCurrentRpm * overallRatio * vehicleState.drivelineEfficiency))
     : 0;
 
-  const slipLoad = isCoupled && drivelineRpm > 0
-    ? Math.min(0.25, Math.abs(params.currentRpm - drivelineRpm) / Math.max(1, drivelineRpm * 0.5))
-    : 0;
-
   if (!isCoupled) {
     params.load = 0.05;
   } else {
-    params.load = Math.max(0, Math.min(1, resistanceLoad + inertialLoad + slipLoad));
+    params.load = Math.max(0, Math.min(1, resistanceLoad + inertialLoad));
   }
 
   let effectiveInertia = params.inertia;
@@ -617,6 +606,11 @@ function update() {
 
   params.currentRpm = params.currentRpm * effectiveInertia + targetRpm * (1.0 - effectiveInertia);
   params.currentRpm = Math.max(params.idleRpm * 0.75, Math.min(params.currentRpm, params.redlineRpm * 1.05));
+
+  // Speed is directly determined by RPM and gear ratio
+  vehicleState.speed = isCoupled
+    ? (params.currentRpm * 2 * Math.PI * vehicleState.wheelRadius) / (overallRatio * 60)
+    : 0;
 
   // Send to AudioWorklet
   if (engineNode) {
