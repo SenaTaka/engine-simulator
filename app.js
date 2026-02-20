@@ -391,6 +391,7 @@ roadLoadInput.addEventListener('input', () => {
 
 gearInput.addEventListener('change', () => {
   vehicleState.gear = parseInt(gearInput.value, 10) || 0;
+  adjustRpmForGearChange();
   updateGearButtons();
 });
 
@@ -400,6 +401,7 @@ gearButtons.forEach(btn => {
     const gear = parseInt(btn.dataset.gear, 10);
     vehicleState.gear = gear;
     gearInput.value = gear;
+    adjustRpmForGearChange();
     updateGearButtons();
   });
 });
@@ -500,6 +502,27 @@ function getOverallRatio() {
   if (vehicleState.gear <= 0) return 0;
   const gear = vehicleState.gearRatios[vehicleState.gear - 1] || 0;
   return gear * vehicleState.finalDrive;
+}
+
+/**
+ * Adjust RPM when gear changes to maintain current vehicle speed
+ * This ensures that upshift drops RPM and downshift raises RPM
+ */
+function adjustRpmForGearChange() {
+  // Only adjust if engine is running and vehicle is moving
+  if (!isPlaying || vehicleState.speed < 0.1) return;
+
+  const newOverallRatio = getOverallRatio();
+
+  // If in neutral, let RPM drop to idle naturally
+  if (newOverallRatio === 0) return;
+
+  // Calculate what RPM should be to maintain current speed with new gear
+  // Derived from: speed = (rpm * 2 * PI * wheelRadius) / (overallRatio * 60)
+  const newRpm = (vehicleState.speed * newOverallRatio * 60) / (2 * Math.PI * vehicleState.wheelRadius);
+
+  // Clamp to valid RPM range
+  params.currentRpm = Math.max(params.idleRpm * 0.75, Math.min(newRpm, params.redlineRpm * 1.05));
 }
 
 function calcEngineTorque(rpm, throttle) {
@@ -689,12 +712,14 @@ window.addEventListener('keydown', (e) => {
     const gear = parseInt(e.code.charAt(5), 10);
     vehicleState.gear = gear;
     gearInput.value = gear;
+    adjustRpmForGearChange();
     updateGearButtons();
   }
   // Neutral with N key
   if (e.code === 'KeyN') {
     vehicleState.gear = 0;
     gearInput.value = 0;
+    adjustRpmForGearChange();
     updateGearButtons();
   }
   // Launch control with L key
