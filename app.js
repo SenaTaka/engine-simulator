@@ -574,10 +574,19 @@ function update() {
   const accel = netForce / vehicleState.mass;
   vehicleState.speed = Math.max(0, vehicleState.speed + accel * dt);
 
+  // Calculate internal resistance proportional to RPM^1.5
+  // This models pumping losses and friction that increase non-linearly with RPM
+  const rpmNormalized = params.currentRpm / params.redlineRpm;
+  const internalResistance = Math.pow(rpmNormalized, 1.5);
+  const resistanceFactor = 0.15 * internalResistance; // Scale factor for resistance effect
+
   const freeTargetRpm = params.idleRpm + (params.redlineRpm - params.idleRpm) * params.currentThrottle;
+  // Apply internal resistance to reduce target RPM, effect is stronger at higher RPM
+  const resistedTargetRpm = freeTargetRpm * (1.0 - resistanceFactor * (1.0 - params.currentThrottle));
+
   const speedCoupling = Math.min(0.4, vehicleState.speed * 0.02);
   const coupling = isCoupled ? Math.min(0.85, 0.25 + 0.35 * params.currentThrottle + speedCoupling) : 0;
-  const targetRpm = isCoupled ? Math.max(params.idleRpm, drivelineRpm * coupling + freeTargetRpm * (1.0 - coupling)) : freeTargetRpm;
+  const targetRpm = isCoupled ? Math.max(params.idleRpm, drivelineRpm * coupling + resistedTargetRpm * (1.0 - coupling)) : resistedTargetRpm;
 
   const rpmSpan = Math.max(1, params.redlineRpm - params.idleRpm);
   const maxTorqueAtCurrentRpm = calcEngineTorque(params.currentRpm, 1.0);
