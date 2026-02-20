@@ -224,7 +224,9 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'vtecMode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'fa24Mode', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'redlineRpm', defaultValue: 7000, minValue: 3000, maxValue: 12000 },
-      { name: 'load', defaultValue: 0, minValue: 0, maxValue: 1 }
+      { name: 'load', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'v8Mode', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'rotaryMode', defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
   }
 
@@ -249,6 +251,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       const fa24Mode = getParamValue(parameters.fa24Mode, i);
       const redlineRpm = getParamValue(parameters.redlineRpm, i);
       const load = getParamValue(parameters.load, i);
+      const v8Mode = getParamValue(parameters.v8Mode, i);
+      const rotaryMode = getParamValue(parameters.rotaryMode, i);
 
       // Rev limiter simulation: fuel cut at redline
       let revLimiterCut = 1.0;
@@ -385,7 +389,31 @@ class EngineProcessor extends AudioWorkletProcessor {
       const boxerMid = fa24Mode * (SynthConstants.BOXER_MID_BASE + SynthConstants.BOXER_MID_THROTTLE * throttle) * Math.sin(1.5 * this.phase + 1.1 + boxerWobble);
       signal += boxerSub + boxerMid;
 
-      // 3. Intake/Mechanical/Combustion Noise (multi-band)
+      // V8: deep rumble with cross-plane crank firing order irregularity
+      if (v8Mode > 0.0) {
+        // Cross-plane V8 firing order creates a distinctive uneven 90-degree pulse pair
+        const v8PulseA = Math.pow(Math.max(0, Math.sin(this.phase + 0.0)), 6.0);
+        const v8PulseB = Math.pow(Math.max(0, Math.sin(this.phase + Math.PI * 0.5)), 6.0);
+        const v8PulseC = Math.pow(Math.max(0, Math.sin(this.phase + Math.PI)), 6.0);
+        const v8PulseD = Math.pow(Math.max(0, Math.sin(this.phase + Math.PI * 1.5)), 6.0);
+        const v8Rumble = 0.28 * (v8PulseA + 0.9 * v8PulseB + 0.95 * v8PulseC + 0.85 * v8PulseD);
+        // V8 deep burble layer
+        const v8Deep = Math.sin(this.phase * 0.5) * (0.25 + 0.35 * throttle);
+        signal = signal * (1.0 - 0.25 * v8Mode) + (v8Rumble + v8Deep) * (0.6 * v8Mode);
+      }
+
+      // Rotary (Wankel): smooth, high-revving with distinctive trochoid pulse
+      if (rotaryMode > 0.0) {
+        // Rotary has 3 power strokes per rotor revolution (per 2-rotor = 6 per crankshaft rev)
+        // Creates a smooth, almost turbine-like sound with a unique "brap" texture
+        const rotaryPulse = Math.pow(Math.max(0, Math.sin(this.phase * 1.5 + 0.4)), 4.0)
+                          + 0.6 * Math.pow(Math.max(0, Math.sin(this.phase * 1.5 + Math.PI * 2 / 3 + 0.4)), 4.0);
+        const rotarySmooth = 0.55 + 0.45 * Math.sin(this.phase * 3.0 + 0.1);
+        const rotaryLayer = rotaryPulse * rotarySmooth * (0.18 + 0.32 * throttle);
+        // Suppress low harmonics, emphasize mids (characteristic rotary tone)
+        signal = signal * (1.0 - 0.3 * rotaryMode) + rotaryLayer * (0.7 * rotaryMode);
+      }
+
       const white = (Math.random() * 2.0 - 1.0);
 
       // Load-dependent noise: under load, engine produces more mechanical and combustion noise

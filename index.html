@@ -4,8 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Real-time browser-based engine sound simulator using Web Audio API">
+  <meta name="theme-color" content="#00ff88">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="EngineSim">
   <title>Realtime Engine Simulator</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
 </head>
 <body>
   <div class="container" role="main">
@@ -54,10 +59,21 @@
         </svg>
       </div>
 
+      <!-- Spectrum Analyzer -->
+      <div class="spectrum-container" aria-label="Real-time frequency spectrum analyzer">
+        <canvas id="spectrum-canvas" class="spectrum-canvas" aria-hidden="true"></canvas>
+      </div>
+
       <!-- Main Controls (moved above speed display) -->
       <div class="main-controls">
         <button id="start-btn" aria-label="Start or stop engine">Start Engine</button>
         <button id="pedal-btn" class="pedal" aria-label="Gas pedal - hold to accelerate">🚀 GAS PEDAL</button>
+      </div>
+
+      <!-- Recording and Share Controls -->
+      <div class="action-bar">
+        <button id="record-btn" class="action-btn record-btn" aria-label="Record engine audio" title="Record engine audio">⏺ Record</button>
+        <button id="share-btn" class="action-btn share-btn" aria-label="Share current engine settings" title="Share settings via URL">🔗 Share</button>
       </div>
 
       <!-- Speed and Gear Display -->
@@ -124,6 +140,8 @@
             <option value="turbo">Turbo-like</option>
             <option value="vtec">VTEC (High-cam Crossover)</option>
             <option value="fa24">FA24 (Boxer Rumble)</option>
+            <option value="v8">V8 (American Muscle)</option>
+            <option value="rotary">Rotary (Wankel)</option>
           </select>
         </div>
 
@@ -221,6 +239,13 @@
           <li><strong>1-6</strong> - Shift gears</li>
           <li><strong>N</strong> - Neutral</li>
         </ul>
+      </div>
+
+      <!-- PWA Install Prompt -->
+      <div id="install-bar" class="install-bar" style="display:none;">
+        <span class="install-label">📱 Add to Home Screen for the best experience</span>
+        <button id="install-btn" class="install-btn" aria-label="Install app to home screen">Install App</button>
+        <button id="install-dismiss" class="install-dismiss" aria-label="Dismiss install prompt">✕</button>
       </div>
     </div>
   </div>
