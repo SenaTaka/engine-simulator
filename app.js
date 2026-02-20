@@ -180,7 +180,10 @@ const vehicleState = {
 
 // Real vehicle mode sensor state
 const sensorState = {
-  gpsSpeed: 0, // m/s from GPS
+  gpsSpeed: 0, // m/s from GPS (latest raw value)
+  prevGpsSpeed: 0, // m/s from GPS at previous update (interpolation start point)
+  gpsInterval: 1000, // estimated GPS update interval in ms (auto-detected)
+  interpolatedSpeed: 0, // smoothly interpolated speed in m/s
   gpsAccuracy: null,
   acceleration: { x: 0, y: 0, z: 0 }, // m/s^2 from accelerometer
   lastGPSTime: 0,
@@ -400,9 +403,24 @@ function startGPSSensor() {
 
   sensorState.watchId = navigator.geolocation.watchPosition(
     (position) => {
-      sensorState.gpsSpeed = position.coords.speed || 0; // speed in m/s
+      const now = Date.now();
+      const newSpeed = position.coords.speed || 0; // speed in m/s
+
+      // Auto-detect GPS update interval using exponential moving average
+      if (sensorState.lastGPSTime > 0) {
+        const elapsed = now - sensorState.lastGPSTime;
+        if (elapsed > 100 && elapsed < 5000) {
+          // EMA weight: 0.7 for history, 0.3 for new sample
+          const emaHistoryWeight = 0.7;
+          sensorState.gpsInterval = sensorState.gpsInterval * emaHistoryWeight + elapsed * (1 - emaHistoryWeight);
+        }
+      }
+
+      // Capture the current smoothed speed as the start of the next interpolation segment
+      sensorState.prevGpsSpeed = sensorState.interpolatedSpeed;
+      sensorState.gpsSpeed = newSpeed;
       sensorState.gpsAccuracy = position.coords.accuracy;
-      sensorState.lastGPSTime = Date.now();
+      sensorState.lastGPSTime = now;
       sensorState.hasGPS = true;
       updateSensorStatus();
     },
@@ -472,6 +490,9 @@ function stopGPSSensor() {
   }
   sensorState.hasGPS = false;
   sensorState.gpsSpeed = 0;
+  sensorState.prevGpsSpeed = 0;
+  sensorState.interpolatedSpeed = 0;
+  sensorState.lastGPSTime = 0;
   updateSensorStatus();
 }
 
@@ -829,11 +850,28 @@ function update() {
   params.currentRpm = params.currentRpm * effectiveInertia + targetRpm * (1.0 - effectiveInertia);
   params.currentRpm = Math.max(params.idleRpm * 0.75, Math.min(params.currentRpm, params.redlineRpm * 1.05));
 
-  // In real vehicle mode: override RPM from GPS speed in 1st gear
+  // In real vehicle mode: override RPM from GPS speed with smooth interpolation
   if (params.realVehicleMode && vehicleState.gearRatios && vehicleState.gearRatios[0]) {
     const overallRatio1st = vehicleState.gearRatios[0] * vehicleState.finalDrive;
-    const gpsSpeed = sensorState.gpsSpeed || 0;
-    const rpmFromSpeed = (gpsSpeed * overallRatio1st * 60) / (2 * Math.PI * vehicleState.wheelRadius);
+
+    // Linear interpolation between the previous and current GPS speed values,
+    // spread evenly over the estimated GPS update interval so that speed
+    // changes gradually rather than jumping at each GPS fix.
+    const now = Date.now();
+    const timeSinceUpdate = now - sensorState.lastGPSTime;
+    const minGpsIntervalMs = 100; // guard against zero-division and unrealistic update rates
+    const interval = Math.max(minGpsIntervalMs, sensorState.gpsInterval);
+    const t = sensorState.lastGPSTime > 0 ? Math.min(1.0, timeSinceUpdate / interval) : 1.0;
+    const targetSpeed = sensorState.prevGpsSpeed + (sensorState.gpsSpeed - sensorState.prevGpsSpeed) * t;
+
+    // Apply additional exponential smoothing for final-frame smoothness.
+    // smoothFactor = 0.12 gives approximately a 90 ms time constant at 60 fps
+    // (τ ≈ 1 / (-ln(1 - smoothFactor) * 60) ≈ 0.09 s).
+    const smoothFactor = 0.12;
+    sensorState.interpolatedSpeed += (targetSpeed - sensorState.interpolatedSpeed) * smoothFactor;
+    sensorState.interpolatedSpeed = Math.max(0, sensorState.interpolatedSpeed);
+
+    const rpmFromSpeed = (sensorState.interpolatedSpeed * overallRatio1st * 60) / (2 * Math.PI * vehicleState.wheelRadius);
     params.currentRpm = Math.max(params.idleRpm, Math.min(rpmFromSpeed, params.redlineRpm * 1.05));
   }
 
@@ -882,9 +920,9 @@ function update() {
     gearDisplay.textContent = vehicleState.gear <= 0 ? 'N' : vehicleState.gear;
   }
 
-  // Update real vehicle GPS speed display
+  // Update real vehicle GPS speed display (use interpolated speed for smooth display)
   if (params.realVehicleMode && gpsSpeedValueDisplay) {
-    gpsSpeedValueDisplay.textContent = Math.round(sensorState.gpsSpeed * 3.6);
+    gpsSpeedValueDisplay.textContent = Math.round(sensorState.interpolatedSpeed * 3.6);
   }
 
   // Update performance metrics
