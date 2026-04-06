@@ -1,6 +1,14 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+  background:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 18px,
+      rgba(0,255,136,0.015) 18px,
+      rgba(0,255,136,0.015) 20px
+    ),
+    linear-gradient(135deg, #050508 0%, #0d0d1a 50%, #0a0a14 100%);
   color: #f0f0f0;
   display: flex;
   justify-content: center;
@@ -111,32 +119,56 @@ body {
 }
 
 .container {
-  background: linear-gradient(145deg, #1e1e2e 0%, #2a2a3e 100%);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 24px,
+      rgba(255,255,255,0.012) 24px,
+      rgba(255,255,255,0.012) 25px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 24px,
+      rgba(255,255,255,0.012) 24px,
+      rgba(255,255,255,0.012) 25px
+    ),
+    linear-gradient(145deg, #141420 0%, #1c1c2e 100%);
   padding: 2rem;
   border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 40px rgba(0,255,136,0.1);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 50px rgba(0,255,136,0.08), inset 0 1px 0 rgba(255,255,255,0.05);
   text-align: center;
   width: 90%;
   max-width: 600px;
-  border: 1px solid rgba(0,255,136,0.2);
+  border: 1px solid rgba(0,255,136,0.25);
+  border-top: 3px solid rgba(0,255,136,0.5);
 }
 
 h1 {
   margin-top: 0;
-  background: linear-gradient(90deg, #00ff88, #00ccff);
+  background: linear-gradient(90deg, #00ff88, #00ccff, #00ff88);
+  background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  font-size: 2.5rem;
-  letter-spacing: 2px;
+  font-size: 2.2rem;
+  letter-spacing: 4px;
+  font-weight: 900;
+  text-transform: uppercase;
+  text-shadow: none;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid rgba(0,255,136,0.2);
+  margin-bottom: 1.5rem;
 }
 
 .dashboard {
-  margin: 2rem 0;
+  margin: 1.5rem 0;
   padding: 1.5rem;
-  background: rgba(0,0,0,0.3);
+  background: rgba(0,0,0,0.4);
   border-radius: 16px;
   border: 1px solid rgba(0,255,136,0.15);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.5), 0 0 20px rgba(0,0,0,0.3);
 }
 
 /* Circular RPM Gauge */
@@ -148,30 +180,38 @@ h1 {
 .gauge-svg {
   width: 100%;
   height: auto;
-  filter: drop-shadow(0 0 10px rgba(0,255,136,0.3));
+  filter: drop-shadow(0 0 14px rgba(0,255,136,0.35)) drop-shadow(0 0 4px rgba(0,0,0,0.8));
 }
 
 .rpm-text {
-  font-size: 32px;
+  font-size: 34px;
   font-weight: bold;
   fill: #00ff88;
   font-family: 'Courier New', monospace;
+  letter-spacing: 1px;
+  filter: drop-shadow(0 0 6px rgba(0,255,136,0.6));
 }
 
 .rpm-unit {
-  font-size: 12px;
-  fill: #888;
-  font-weight: normal;
+  font-size: 11px;
+  fill: #666;
+  font-weight: bold;
+  letter-spacing: 3px;
+  text-transform: uppercase;
 }
 
 .shift-light {
-  fill: #333;
-  transition: fill 0.1s;
+  fill: #1a1a1a;
+  stroke: #444;
+  stroke-width: 1.5;
+  transition: fill 0.08s, filter 0.08s;
 }
 
 .shift-light.active {
-  fill: #ff0055;
-  filter: drop-shadow(0 0 4px #ff0055);
+  fill: #ff0044;
+  stroke: #ff6688;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 6px #ff0044) drop-shadow(0 0 2px #ff0044);
 }
 
 /* Speed and Gear Row */
@@ -185,10 +225,11 @@ h1 {
 .speed-display-box,
 .gear-display-box {
   flex: 1;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0,0,0,0.5);
   border-radius: 12px;
   padding: 1rem;
-  border: 2px solid rgba(0,255,136,0.2);
+  border: 1px solid rgba(0,255,136,0.2);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.5);
 }
 
 .display-value {
@@ -196,14 +237,16 @@ h1 {
   font-weight: bold;
   color: #00ff88;
   font-family: 'Courier New', monospace;
+  text-shadow: 0 0 10px rgba(0,255,136,0.5);
 }
 
 .display-label {
-  font-size: 0.8rem;
-  color: #888;
+  font-size: 0.75rem;
+  color: #666;
   margin-top: 0.25rem;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
+  font-weight: bold;
 }
 
 /* Gear Buttons */
@@ -216,29 +259,32 @@ h1 {
 }
 
 .gear-btn {
-  background: rgba(0,0,0,0.4);
-  color: #aaa;
-  border: 2px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.5);
+  color: #888;
+  border: 1.5px solid rgba(255,255,255,0.12);
   padding: 0.5rem 1rem;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 1rem;
   font-weight: bold;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
   min-width: 45px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .gear-btn:hover {
-  background: rgba(0,255,136,0.1);
-  border-color: rgba(0,255,136,0.3);
+  background: rgba(0,255,136,0.12);
+  border-color: rgba(0,255,136,0.4);
+  color: #00ff88;
   transform: translateY(-2px);
 }
 
 .gear-btn.active {
-  background: linear-gradient(135deg, #00ff88, #00ccff);
-  color: #000;
+  background: linear-gradient(135deg, rgba(0,255,136,0.25), rgba(0,204,255,0.2));
+  color: #00ff88;
   border-color: #00ff88;
-  box-shadow: 0 0 20px rgba(0,255,136,0.5);
+  box-shadow: 0 0 16px rgba(0,255,136,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
 /* Performance Metrics */
@@ -251,17 +297,20 @@ h1 {
 
 .metric {
   flex: 1;
-  background: rgba(0,0,0,0.3);
+  background: rgba(0,0,0,0.4);
   padding: 0.75rem;
   border-radius: 8px;
   border: 1px solid rgba(0,255,136,0.1);
+  box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
 }
 
 .metric-label {
-  font-size: 0.7rem;
-  color: #888;
+  font-size: 0.65rem;
+  color: #666;
   text-transform: uppercase;
+  letter-spacing: 2px;
   margin-bottom: 0.25rem;
+  font-weight: bold;
 }
 
 .metric-value {
@@ -269,6 +318,7 @@ h1 {
   font-weight: bold;
   color: #00ff88;
   font-family: 'Courier New', monospace;
+  text-shadow: 0 0 8px rgba(0,255,136,0.4);
 }
 
 /* Bars Container */
@@ -301,9 +351,9 @@ h1 {
 .throttle-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #00ff88, #ffcc00, #ff0055);
-  transition: width 0.1s linear;
-  box-shadow: 0 0 10px rgba(0,255,136,0.5);
+  background: linear-gradient(90deg, #00cc66, #ffcc00, #ff3300);
+  transition: width 0.08s linear;
+  box-shadow: 0 0 12px rgba(0,255,136,0.4);
 }
 
 .load-bar {
@@ -332,18 +382,20 @@ h1 {
 }
 
 .main-controls button {
-  background: linear-gradient(135deg, #0070f3, #0052cc);
-  color: white;
-  border: none;
+  background: linear-gradient(135deg, #003399, #002266);
+  color: #88ccff;
+  border: 1.5px solid rgba(0,150,255,0.5);
   padding: 14px 28px;
-  border-radius: 12px;
-  font-size: 1.1rem;
+  border-radius: 8px;
+  font-size: 1rem;
   font-weight: bold;
   cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 4px 15px rgba(0,112,243,0.3);
+  transition: all 0.2s;
+  box-shadow: 0 4px 15px rgba(0,50,200,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
   position: relative;
   overflow: hidden;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .main-controls button::before {
@@ -354,9 +406,9 @@ h1 {
   width: 0;
   height: 0;
   border-radius: 50%;
-  background: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.2);
   transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
+  transition: width 0.5s, height 0.5s;
 }
 
 .main-controls button:hover::before {
@@ -365,17 +417,23 @@ h1 {
 }
 
 .main-controls button:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 25px rgba(0,112,243,0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,100,255,0.4);
+  border-color: rgba(0,200,255,0.7);
+  color: #cceeff;
 }
 
 .main-controls button.pedal {
-  background: linear-gradient(135deg, #ff4444, #cc0000);
-  box-shadow: 0 4px 15px rgba(255,68,68,0.3);
+  background: linear-gradient(135deg, #880000, #550000);
+  color: #ffaaaa;
+  border-color: rgba(255,80,80,0.5);
+  box-shadow: 0 4px 15px rgba(200,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
 .main-controls button.pedal:hover {
-  box-shadow: 0 6px 25px rgba(255,68,68,0.5);
+  box-shadow: 0 6px 25px rgba(255,0,0,0.5);
+  border-color: rgba(255,80,80,0.8);
+  color: #ffcccc;
 }
 
 .settings {
@@ -500,8 +558,10 @@ select:focus {
 #status {
   color: #00ff88;
   font-weight: bold;
-  font-size: 1.1rem;
-  text-shadow: 0 0 10px rgba(0,255,136,0.5);
+  font-size: 1rem;
+  text-shadow: 0 0 8px rgba(0,255,136,0.5);
+  letter-spacing: 2px;
+  text-transform: uppercase;
 }
 
 /* Responsive design */

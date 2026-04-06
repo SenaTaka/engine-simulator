@@ -8,13 +8,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="EngineSim">
-  <title>Realtime Engine Simulator</title>
+  <title>Racing Engine Simulator</title>
   <link rel="stylesheet" href="style.css">
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
   <div class="container" role="main">
-    <h1>Engine Simulator</h1>
+    <h1>🏁 ENGINE SIMULATOR</h1>
 
     <!-- Real Vehicle Mode Toggle (prominent, top of page) -->
     <div class="real-vehicle-toggle-bar" id="real-vehicle-toggle-bar">
@@ -43,19 +43,23 @@
               <stop offset="100%" style="stop-color:#ff0055;stop-opacity:1" />
             </linearGradient>
           </defs>
-          <!-- Background arc -->
-          <path d="M 30 170 A 80 80 0 1 1 170 170" fill="none" stroke="#333" stroke-width="20" stroke-linecap="round"/>
+          <!-- Background arc: normal zone (0–80% of gauge) -->
+          <path d="M 30 170 A 80 80 0 1 1 175.8 105.7" fill="none" stroke="#333" stroke-width="20" stroke-linecap="round"/>
+          <!-- Caution zone (80–90%) -->
+          <path d="M 175.8 105.7 A 80 80 0 0 1 179.7 138.5" fill="none" stroke="#7a3300" stroke-width="20" stroke-linecap="round"/>
+          <!-- Redline zone (90–100%): always visible -->
+          <path id="redline-arc" d="M 179.7 138.5 A 80 80 0 0 1 170 170" fill="none" stroke="#660000" stroke-width="20" stroke-linecap="round"/>
           <!-- Progress arc -->
           <path id="rpm-arc" d="M 30 170 A 80 80 0 1 1 170 170" fill="none" stroke="url(#gauge-gradient)" stroke-width="20" stroke-linecap="round"/>
           <!-- Shift lights -->
-          <circle cx="50" cy="50" r="4" class="shift-light" id="shift-light-1"/>
-          <circle cx="70" cy="35" r="4" class="shift-light" id="shift-light-2"/>
-          <circle cx="100" cy="30" r="4" class="shift-light" id="shift-light-3"/>
-          <circle cx="130" cy="35" r="4" class="shift-light" id="shift-light-4"/>
-          <circle cx="150" cy="50" r="4" class="shift-light" id="shift-light-5"/>
+          <circle cx="50" cy="50" r="5.5" class="shift-light" id="shift-light-1"/>
+          <circle cx="70" cy="35" r="5.5" class="shift-light" id="shift-light-2"/>
+          <circle cx="100" cy="30" r="5.5" class="shift-light" id="shift-light-3"/>
+          <circle cx="130" cy="35" r="5.5" class="shift-light" id="shift-light-4"/>
+          <circle cx="150" cy="50" r="5.5" class="shift-light" id="shift-light-5"/>
           <!-- Center display -->
           <text x="100" y="110" text-anchor="middle" class="rpm-text" id="rpm-value">0</text>
-          <text x="100" y="130" text-anchor="middle" class="rpm-unit">RPM</text>
+          <text x="100" y="127" text-anchor="middle" class="rpm-unit">RPM</text>
         </svg>
       </div>
 
@@ -66,8 +70,8 @@
 
       <!-- Main Controls (moved above speed display) -->
       <div class="main-controls">
-        <button id="start-btn" aria-label="Start or stop engine">Start Engine</button>
-        <button id="pedal-btn" class="pedal" aria-label="Gas pedal - hold to accelerate">🚀 GAS PEDAL</button>
+        <button id="start-btn" aria-label="Start or stop engine">🔑 Start Engine</button>
+        <button id="pedal-btn" class="pedal" aria-label="Gas pedal - hold to accelerate">🔴 GAS PEDAL</button>
       </div>
 
       <!-- Recording and Share Controls -->

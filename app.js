@@ -339,6 +339,9 @@ function updateParamsFromUI() {
     params.enginePreset = 'custom';
     presetInput.value = 'custom';
     updateParamsFromUI();
+    if (el === redlineRpmInput) {
+      setupGaugeScale(params.redlineRpm);
+    }
   });
 });
 
@@ -347,10 +350,12 @@ presetInput.addEventListener('change', () => {
   if (selectedPreset === 'custom') {
     params.enginePreset = 'custom';
     updateParamsFromUI();
+    setupGaugeScale(params.redlineRpm);
     return;
   }
 
   applyPreset(selectedPreset);
+  setupGaugeScale(params.redlineRpm);
 });
 
 /**
@@ -748,6 +753,91 @@ function updateRPMGauge(rpm, redline) {
   rpmArc.style.strokeDashoffset = rpmArcLength * (1 - rpmRatio);
 }
 
+/**
+ * Draw RPM scale tick marks and redline zone arcs on the gauge SVG.
+ * Called on engine start and whenever the redline changes.
+ * @param {number} redline - Redline RPM value
+ */
+function setupGaugeScale(redline) {
+  const svg = document.querySelector('.gauge-svg');
+  if (!svg) return;
+
+  // Remove existing dynamic ticks
+  svg.querySelectorAll('.gauge-tick, .gauge-tick-label').forEach(el => el.remove());
+
+  // Gauge geometry: arc center derived from path endpoints (30,170) and (170,170) at radius 80
+  // Center x = midpoint of endpoints = 100
+  // Center y = 170 - sqrt(80² - 70²) = 170 - sqrt(1500) ≈ 131.27
+  const cx = 100, cy = 131.27, r = 80;
+  const startAngleDeg = 241; // degrees CW from 12 o'clock (0 RPM position)
+  const sweepDeg = 238;      // total angular span of the gauge arc
+
+  const ns = 'http://www.w3.org/2000/svg';
+
+  // Helper: compute SVG point on the arc at a given fraction (0–1) of the gauge range
+  function getArcPoint(frac, radius) {
+    const angleDeg = (startAngleDeg + frac * sweepDeg) % 360;
+    const angleRad = angleDeg * Math.PI / 180;
+    return {
+      x: cx + radius * Math.sin(angleRad),
+      y: cy - radius * Math.cos(angleRad)
+    };
+  }
+
+  // Draw tick marks at 1000 RPM intervals up to the redline
+  const maxTick = Math.ceil(redline / 1000) * 1000;
+
+  for (let rpm = 0; rpm <= maxTick; rpm += 1000) {
+    const frac = rpm / redline;
+    const isMajor = (rpm % 2000 === 0);
+    const rOuter = 76;
+    const rInner = isMajor ? 65 : 71;
+
+    const inner = getArcPoint(frac, rInner);
+    const outer = getArcPoint(frac, rOuter);
+
+    const isRedZone = frac >= 0.9;
+    const isCautionZone = frac >= 0.75;
+
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', inner.x.toFixed(1));
+    line.setAttribute('y1', inner.y.toFixed(1));
+    line.setAttribute('x2', outer.x.toFixed(1));
+    line.setAttribute('y2', outer.y.toFixed(1));
+    line.setAttribute('stroke', isRedZone ? '#ff3333' : isCautionZone ? '#ff8800' : '#555');
+    line.setAttribute('stroke-width', isMajor ? '2' : '1.5');
+    line.classList.add('gauge-tick');
+    // Insert before the progress arc so ticks appear behind it
+    const progressArc = document.getElementById('rpm-arc');
+    if (progressArc) {
+      svg.insertBefore(line, progressArc);
+    } else {
+      svg.insertBefore(line, svg.firstChild);
+    }
+
+    // Labels for major ticks (every 2000 RPM, skip 0)
+    if (isMajor && rpm > 0) {
+      const labelPos = getArcPoint(frac, 54);
+      const text = document.createElementNS(ns, 'text');
+      text.setAttribute('x', labelPos.x.toFixed(1));
+      text.setAttribute('y', (labelPos.y + 3.5).toFixed(1));
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', isRedZone ? '#cc2222' : '#666');
+      text.setAttribute('font-size', '9');
+      text.setAttribute('font-family', 'Courier New, monospace');
+      text.setAttribute('font-weight', 'bold');
+      text.classList.add('gauge-tick-label');
+      text.textContent = String(rpm / 1000);
+      const progressArcForLabel = document.getElementById('rpm-arc');
+      if (progressArcForLabel) {
+        svg.insertBefore(text, progressArcForLabel);
+      } else {
+        svg.insertBefore(text, svg.firstChild);
+      }
+    }
+  }
+}
+
 // Update shift lights
 function updateShiftLights(rpm, redline) {
   const rpmRatio = rpm / redline;
@@ -1094,7 +1184,7 @@ startButton.addEventListener('click', async () => {
     if (isPlaying) {
       await audioCtx.suspend();
       isPlaying = false;
-      startButton.textContent = 'Start Engine';
+      startButton.textContent = '🔑 Start Engine';
       statusText.textContent = 'Engine Stopped';
       return;
     }
@@ -1167,9 +1257,10 @@ startButton.addEventListener('click', async () => {
 
     lastUpdateTime = performance.now();
     isPlaying = true;
-    startButton.textContent = 'Stop Engine';
+    startButton.textContent = '⏹ Stop Engine';
     statusText.textContent = 'Running';
     startButton.disabled = false;
+    setupGaugeScale(params.redlineRpm);
     update();
   } catch (e) {
     console.error('Error starting engine:', e);
@@ -1182,6 +1273,7 @@ startButton.addEventListener('click', async () => {
 // Initialize inputs
 updateParamsFromUI();
 updateGearButtons();
+setupGaugeScale(params.redlineRpm);
 
 /**
  * Save current settings to localStorage

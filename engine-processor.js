@@ -46,7 +46,7 @@ const SynthConstants = {
   VTEC_DAMPING_HIGH_CAM_MIN: 0.35,
   VTEC_DAMPING_HIGH_CAM_BASE: 1.08,
   VTEC_DAMPING_HIGH_CAM_SCALE: 0.38,
-  VTEC_HIGH_HARMONIC_BOOST: 0.55,
+  VTEC_HIGH_HARMONIC_BOOST: 0.75,
   VTEC_HIGH_HARMONIC_THRESHOLD: 7,
   VTEC_CAM_LOBE_BASE: 0.12,
   VTEC_CAM_LOBE_THROTTLE: 0.18,
@@ -92,8 +92,8 @@ const SynthConstants = {
   MECH_RPM_NORM: 8000.0,
 
   // Turbo
-  TURBO_SPOOL_BASE: 10000.0,
-  TURBO_SPOOL_RANGE: 3000.0,
+  TURBO_SPOOL_BASE: 6000.0,
+  TURBO_SPOOL_RANGE: 2500.0,
   TURBO_WHISTLE_GAIN: 0.12,
   TURBO_WHOOSH_BASE: 0.2,
   TURBO_WHOOSH_THROTTLE: 0.8,
@@ -118,15 +118,15 @@ const SynthConstants = {
 
   // Backfire
   BACKFIRE_DECAY: 0.94,
-  BACKFIRE_THRESHOLD: 0.3,
+  BACKFIRE_THRESHOLD: 0.05,
   BACKFIRE_CENTER_RPM: 4500.0,
   BACKFIRE_WIDTH: 3500.0,
   BACKFIRE_GAIN_BASE: 0.35,
   BACKFIRE_GAIN_LPF: 0.65,
 
-  // Resonance
+  // Body resonance
   BODY_RESONANCE_ALPHA: 0.02,
-  BODY_RESONANCE_GAIN: 0.6,
+  BODY_RESONANCE_GAIN: 0.35,
   EXHAUST_RES1_BASE: 180,
   EXHAUST_RES1_RPM_SCALE: 0.02,
   EXHAUST_RES2_BASE: 650,
@@ -147,14 +147,18 @@ const SynthConstants = {
 
   // Distortion
   DISTORTION_BASE: 0.9,
-  DISTORTION_THROTTLE: 2.2,
+  DISTORTION_THROTTLE: 1.5,
   DISTORTION_VTEC: 0.35,
   DISTORTION_FA24: 0.28,
   DISTORTION_LOAD: 0.4,
   POST_LPF_ALPHA_BASE: 0.12,
   POST_LPF_ALPHA_THROTTLE: 0.10,
-  POST_LPF_MIX_FILTERED: 0.82,
-  POST_LPF_MIX_DRY: 0.18,
+  POST_LPF_MIX_FILTERED: 0.75,
+  POST_LPF_MIX_DRY: 0.25,
+
+  // Idle roughness
+  IDLE_ROUGH_RPM: 2500.0,
+  IDLE_ROUGH_GAIN: 0.15,
 
   // Output
   MASTER_VOLUME: 0.34
@@ -391,15 +395,18 @@ class EngineProcessor extends AudioWorkletProcessor {
 
       // V8: deep rumble with cross-plane crank firing order irregularity
       if (v8Mode > 0.0) {
-        // Cross-plane V8 firing order creates a distinctive uneven 90-degree pulse pair
+        // Cross-plane V8: uneven firing intervals create characteristic "potato potato" burble.
+        // Real cross-plane crank has pairs firing ~105° apart, then a ~255° gap to the next pair.
         const v8PulseA = Math.pow(Math.max(0, Math.sin(this.phase + 0.0)), 6.0);
-        const v8PulseB = Math.pow(Math.max(0, Math.sin(this.phase + Math.PI * 0.5)), 6.0);
+        const v8PulseB = Math.pow(Math.max(0, Math.sin(this.phase + Math.PI * 0.583)), 6.0); // 105°
         const v8PulseC = Math.pow(Math.max(0, Math.sin(this.phase + Math.PI)), 6.0);
-        const v8PulseD = Math.pow(Math.max(0, Math.sin(this.phase + Math.PI * 1.5)), 6.0);
+        const v8PulseD = Math.pow(Math.max(0, Math.sin(this.phase + Math.PI * 1.583)), 6.0); // 285°
         const v8Rumble = 0.28 * (v8PulseA + 0.9 * v8PulseB + 0.95 * v8PulseC + 0.85 * v8PulseD);
         // V8 deep burble layer
-        const v8Deep = Math.sin(this.phase * 0.5) * (0.25 + 0.35 * throttle);
-        signal = signal * (1.0 - 0.25 * v8Mode) + (v8Rumble + v8Deep) * (0.6 * v8Mode);
+        const v8Deep = Math.sin(this.phase * 0.5) * (0.28 + 0.35 * throttle);
+        // Sub-bass "potato" texture: prominent at idle, fades at high RPM
+        const v8Burble = Math.sin(this.phase * 0.25 + 0.3) * (0.14 + 0.12 * throttle) * Math.max(0, 1.0 - rpm / 4000.0);
+        signal = signal * (1.0 - 0.25 * v8Mode) + (v8Rumble + v8Deep + v8Burble) * (0.6 * v8Mode);
       }
 
       // Rotary (Wankel): smooth, high-revving with distinctive trochoid pulse
@@ -500,6 +507,13 @@ class EngineProcessor extends AudioWorkletProcessor {
 
       // Apply rev limiter cut (simulates fuel cut)
       signal *= revLimiterCut;
+
+      // Idle roughness: at low RPM and low throttle, add slow cyclic amplitude variation
+      // This gives the "lumpy idle" characteristic of real engines
+      const idleRoughBase = Math.max(0, 1.0 - throttle) * Math.max(0, 1.0 - rpm / SynthConstants.IDLE_ROUGH_RPM);
+      if (idleRoughBase > 0.01) {
+        signal *= 1.0 + idleRoughBase * SynthConstants.IDLE_ROUGH_GAIN * Math.sin(this.phase * 0.33 + 1.7);
+      }
 
       // 5. Distortion
       // Under load, engine runs harder and produces more distortion
