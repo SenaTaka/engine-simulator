@@ -1,12 +1,31 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+  background: linear-gradient(135deg, #000000 0%, #1a0000 50%, #000000 100%);
   color: #f0f0f0;
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   margin: 0;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Racing stripes background effect */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 100%;
+  background: linear-gradient(180deg,
+    rgba(255, 0, 0, 0.05) 0%,
+    rgba(255, 0, 0, 0.02) 50%,
+    rgba(255, 0, 0, 0.05) 100%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Real Vehicle Speed Display */
@@ -111,35 +130,71 @@ body {
 }
 
 .container {
-  background: linear-gradient(145deg, #1e1e2e 0%, #2a2a3e 100%);
+  background: linear-gradient(145deg, #0a0a0a 0%, #1a0000 50%, #0a0a0a 100%);
   padding: 2rem;
   border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 40px rgba(0,255,136,0.1);
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.9),
+    0 0 40px rgba(255,0,0,0.15),
+    inset 0 1px 0 rgba(255,0,0,0.1);
   text-align: center;
   width: 90%;
   max-width: 600px;
-  border: 1px solid rgba(0,255,136,0.2);
+  border: 2px solid rgba(255,0,0,0.3);
+  position: relative;
+  z-index: 1;
+}
+
+/* Carbon fiber texture effect */
+.container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 2px,
+      rgba(20,20,20,0.3) 2px,
+      rgba(20,20,20,0.3) 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 2px,
+      rgba(20,20,20,0.3) 2px,
+      rgba(20,20,20,0.3) 4px
+    );
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: -1;
 }
 
 h1 {
   margin-top: 0;
-  background: linear-gradient(90deg, #00ff88, #00ccff);
+  background: linear-gradient(90deg, #ff0000, #ff6600, #ff0000);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   font-size: 2.5rem;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
+  font-weight: 900;
+  text-transform: uppercase;
+  text-shadow: 0 0 30px rgba(255,0,0,0.5);
+  filter: drop-shadow(0 2px 4px rgba(255,0,0,0.7));
 }
 
 .dashboard {
   margin: 2rem 0;
   padding: 1.5rem;
-  background: rgba(0,0,0,0.3);
+  background: rgba(0,0,0,0.5);
   border-radius: 16px;
-  border: 1px solid rgba(0,255,136,0.15);
+  border: 2px solid rgba(255,0,0,0.3);
+  box-shadow: inset 0 0 20px rgba(255,0,0,0.1);
 }
 
-/* Circular RPM Gauge */
+/* Circular RPM Gauge - Racing style */
 .rpm-gauge-circular {
   margin: 0 auto 1.5rem;
   max-width: 300px;
@@ -148,30 +203,40 @@ h1 {
 .gauge-svg {
   width: 100%;
   height: auto;
-  filter: drop-shadow(0 0 10px rgba(0,255,136,0.3));
+  filter: drop-shadow(0 0 20px rgba(255,0,0,0.5));
 }
 
 .rpm-text {
-  font-size: 32px;
-  font-weight: bold;
-  fill: #00ff88;
+  font-size: 36px;
+  font-weight: 900;
+  fill: #ff0000;
   font-family: 'Courier New', monospace;
+  text-shadow: 0 0 10px rgba(255,0,0,0.8);
 }
 
 .rpm-unit {
   font-size: 12px;
-  fill: #888;
-  font-weight: normal;
+  fill: #ff6600;
+  font-weight: bold;
+  letter-spacing: 2px;
 }
 
 .shift-light {
-  fill: #333;
-  transition: fill 0.1s;
+  fill: #1a0000;
+  transition: fill 0.05s;
+  stroke: #ff0000;
+  stroke-width: 0.5;
 }
 
 .shift-light.active {
-  fill: #ff0055;
-  filter: drop-shadow(0 0 4px #ff0055);
+  fill: #ff0000;
+  filter: drop-shadow(0 0 6px #ff0000) drop-shadow(0 0 12px #ff0000);
+  animation: pulse-shift 0.2s ease-in-out;
+}
+
+@keyframes pulse-shift {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 /* Speed and Gear Row */
@@ -185,28 +250,31 @@ h1 {
 .speed-display-box,
 .gear-display-box {
   flex: 1;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0,0,0,0.6);
   border-radius: 12px;
   padding: 1rem;
-  border: 2px solid rgba(0,255,136,0.2);
+  border: 2px solid rgba(255,0,0,0.4);
+  box-shadow: inset 0 0 15px rgba(255,0,0,0.15);
 }
 
 .display-value {
   font-size: 2.5rem;
-  font-weight: bold;
-  color: #00ff88;
+  font-weight: 900;
+  color: #ff0000;
   font-family: 'Courier New', monospace;
+  text-shadow: 0 0 15px rgba(255,0,0,0.8);
 }
 
 .display-label {
   font-size: 0.8rem;
-  color: #888;
+  color: #ff6600;
   margin-top: 0.25rem;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
+  font-weight: bold;
 }
 
-/* Gear Buttons */
+/* Gear Buttons - Racing style */
 .gear-buttons {
   display: flex;
   gap: 0.5rem;
@@ -216,29 +284,32 @@ h1 {
 }
 
 .gear-btn {
-  background: rgba(0,0,0,0.4);
-  color: #aaa;
-  border: 2px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.6);
+  color: #ff6600;
+  border: 2px solid rgba(255,0,0,0.3);
   padding: 0.5rem 1rem;
   border-radius: 8px;
   font-size: 1rem;
-  font-weight: bold;
+  font-weight: 900;
   cursor: pointer;
   transition: all 0.2s;
   min-width: 45px;
+  text-shadow: 0 0 5px rgba(255,102,0,0.5);
 }
 
 .gear-btn:hover {
-  background: rgba(0,255,136,0.1);
-  border-color: rgba(0,255,136,0.3);
+  background: rgba(255,0,0,0.2);
+  border-color: rgba(255,0,0,0.6);
   transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255,0,0,0.4);
 }
 
 .gear-btn.active {
-  background: linear-gradient(135deg, #00ff88, #00ccff);
+  background: linear-gradient(135deg, #ff0000, #ff6600);
   color: #000;
-  border-color: #00ff88;
-  box-shadow: 0 0 20px rgba(0,255,136,0.5);
+  border-color: #ff0000;
+  box-shadow: 0 0 25px rgba(255,0,0,0.8), inset 0 0 10px rgba(255,255,255,0.2);
+  font-weight: 900;
 }
 
 /* Performance Metrics */
@@ -251,24 +322,28 @@ h1 {
 
 .metric {
   flex: 1;
-  background: rgba(0,0,0,0.3);
+  background: rgba(0,0,0,0.5);
   padding: 0.75rem;
   border-radius: 8px;
-  border: 1px solid rgba(0,255,136,0.1);
+  border: 2px solid rgba(255,0,0,0.25);
+  box-shadow: inset 0 0 10px rgba(255,0,0,0.1);
 }
 
 .metric-label {
   font-size: 0.7rem;
-  color: #888;
+  color: #ff6600;
   text-transform: uppercase;
   margin-bottom: 0.25rem;
+  font-weight: bold;
+  letter-spacing: 1px;
 }
 
 .metric-value {
   font-size: 1.2rem;
-  font-weight: bold;
-  color: #00ff88;
+  font-weight: 900;
+  color: #ff0000;
   font-family: 'Courier New', monospace;
+  text-shadow: 0 0 10px rgba(255,0,0,0.6);
 }
 
 /* Bars Container */
@@ -301,28 +376,28 @@ h1 {
 .throttle-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #00ff88, #ffcc00, #ff0055);
+  background: linear-gradient(90deg, #ff0000, #ff6600, #ffaa00);
   transition: width 0.1s linear;
-  box-shadow: 0 0 10px rgba(0,255,136,0.5);
+  box-shadow: 0 0 15px rgba(255,0,0,0.8);
 }
 
 .load-bar {
   height: 24px;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.6);
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 2px solid rgba(255,0,0,0.2);
 }
 
 .load-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #4444ff, #ff8800);
+  background: linear-gradient(90deg, #ff0000, #ff8800);
   transition: width 0.1s linear;
-  box-shadow: 0 0 10px rgba(68,68,255,0.5);
+  box-shadow: 0 0 15px rgba(255,0,0,0.6);
 }
 
-/* Main Controls */
+/* Main Controls - Racing style */
 .main-controls {
   display: flex;
   gap: 1rem;
@@ -332,18 +407,20 @@ h1 {
 }
 
 .main-controls button {
-  background: linear-gradient(135deg, #0070f3, #0052cc);
+  background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
   color: white;
-  border: none;
+  border: 2px solid rgba(255,0,0,0.5);
   padding: 14px 28px;
   border-radius: 12px;
   font-size: 1.1rem;
-  font-weight: bold;
+  font-weight: 900;
   cursor: pointer;
   transition: all 0.3s;
-  box-shadow: 0 4px 15px rgba(0,112,243,0.3);
+  box-shadow: 0 4px 15px rgba(255,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2);
   position: relative;
   overflow: hidden;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .main-controls button::before {
@@ -366,16 +443,17 @@ h1 {
 
 .main-controls button:hover {
   transform: translateY(-3px);
-  box-shadow: 0 6px 25px rgba(0,112,243,0.5);
+  box-shadow: 0 6px 25px rgba(255,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.3);
+  border-color: rgba(255,0,0,0.8);
 }
 
 .main-controls button.pedal {
-  background: linear-gradient(135deg, #ff4444, #cc0000);
-  box-shadow: 0 4px 15px rgba(255,68,68,0.3);
+  background: linear-gradient(135deg, #ff0000, #ff6600);
+  box-shadow: 0 4px 15px rgba(255,68,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 
 .main-controls button.pedal:hover {
-  box-shadow: 0 6px 25px rgba(255,68,68,0.5);
+  box-shadow: 0 6px 25px rgba(255,68,0,0.7), inset 0 1px 0 rgba(255,255,255,0.3);
 }
 
 .settings {

@@ -15,24 +15,24 @@
  * Synthesis constants for engine sound generation
  */
 const SynthConstants = {
-  // Harmonic synthesis
-  HARMONIC_COUNT: 24,
-  HARMONIC_COLOR_MIN: 0.85,
-  HARMONIC_COLOR_RANGE: 0.3,
-  HARMONIC_ROLLOFF_FREQ: 4000,
-  HARMONIC_ROLLOFF_RANGE: 10000,
+  // Harmonic synthesis (enhanced for more realistic tone)
+  HARMONIC_COUNT: 28,
+  HARMONIC_COLOR_MIN: 0.80,
+  HARMONIC_COLOR_RANGE: 0.35,
+  HARMONIC_ROLLOFF_FREQ: 5000,
+  HARMONIC_ROLLOFF_RANGE: 12000,
 
-  // Jitter and variation
-  JITTER_BASE: 0.001,
-  JITTER_RANGE: 0.003,
-  RANDOM_WALK_RATE: 0.00015,
-  RANDOM_WALK_DECAY: 0.9995,
+  // Jitter and variation (increased for more organic sound)
+  JITTER_BASE: 0.0015,
+  JITTER_RANGE: 0.004,
+  RANDOM_WALK_RATE: 0.0002,
+  RANDOM_WALK_DECAY: 0.9993,
 
-  // Cylinder variation
-  CYLINDER_PHASE_OFFSET_RANGE: 0.08,
-  CYLINDER_AMP_MIN: 0.92,
-  CYLINDER_AMP_RANGE: 0.16,
-  CYLINDER_CONTRIBUTION: 0.15,
+  // Cylinder variation (enhanced for more organic combustion)
+  CYLINDER_PHASE_OFFSET_RANGE: 0.12,
+  CYLINDER_AMP_MIN: 0.88,
+  CYLINDER_AMP_RANGE: 0.22,
+  CYLINDER_CONTRIBUTION: 0.20,
 
   // VTEC parameters
   VTEC_CROSSOVER_CENTER: 5600.0,
@@ -91,12 +91,15 @@ const SynthConstants = {
   MECH_LOAD_FACTOR: 0.5,
   MECH_RPM_NORM: 8000.0,
 
-  // Turbo
+  // Turbo (enhanced with flutter and wastegate sounds)
   TURBO_SPOOL_BASE: 10000.0,
   TURBO_SPOOL_RANGE: 3000.0,
-  TURBO_WHISTLE_GAIN: 0.12,
-  TURBO_WHOOSH_BASE: 0.2,
-  TURBO_WHOOSH_THROTTLE: 0.8,
+  TURBO_WHISTLE_GAIN: 0.15,
+  TURBO_WHOOSH_BASE: 0.25,
+  TURBO_WHOOSH_THROTTLE: 0.9,
+  TURBO_FLUTTER_FREQ: 28.0,
+  TURBO_FLUTTER_GAIN: 0.18,
+  TURBO_WASTEGATE_GAIN: 0.22,
 
   // Combustion noise
   COMBUSTION_PULSE_FILTER: 0.9,
@@ -116,28 +119,29 @@ const SynthConstants = {
   VALVE_CLICK_BASE: 0.08,
   VALVE_CLICK_RPM: 0.12,
 
-  // Backfire
-  BACKFIRE_DECAY: 0.94,
-  BACKFIRE_THRESHOLD: 0.3,
+  // Backfire (enhanced for more aggressive pops)
+  BACKFIRE_DECAY: 0.92,
+  BACKFIRE_THRESHOLD: 0.25,
   BACKFIRE_CENTER_RPM: 4500.0,
-  BACKFIRE_WIDTH: 3500.0,
-  BACKFIRE_GAIN_BASE: 0.35,
-  BACKFIRE_GAIN_LPF: 0.65,
+  BACKFIRE_WIDTH: 4000.0,
+  BACKFIRE_GAIN_BASE: 0.45,
+  BACKFIRE_GAIN_LPF: 0.75,
+  BACKFIRE_INTENSITY: 1.25,
 
-  // Resonance
-  BODY_RESONANCE_ALPHA: 0.02,
-  BODY_RESONANCE_GAIN: 0.6,
+  // Resonance (enhanced exhaust characteristics)
+  BODY_RESONANCE_ALPHA: 0.025,
+  BODY_RESONANCE_GAIN: 0.7,
   EXHAUST_RES1_BASE: 180,
-  EXHAUST_RES1_RPM_SCALE: 0.02,
+  EXHAUST_RES1_RPM_SCALE: 0.025,
   EXHAUST_RES2_BASE: 650,
-  EXHAUST_RES2_RPM_SCALE: 0.04,
+  EXHAUST_RES2_RPM_SCALE: 0.05,
   EXHAUST_RES3_BASE: 1800,
-  EXHAUST_RES3_RPM_SCALE: 0.08,
-  EXHAUST_RES1_GAIN: 0.28,
-  EXHAUST_RES2_GAIN: 0.22,
-  EXHAUST_RES3_GAIN: 0.15,
-  EXHAUST_RESONANCE_BASE: 0.5,
-  EXHAUST_RESONANCE_THROTTLE: 0.5,
+  EXHAUST_RES3_RPM_SCALE: 0.10,
+  EXHAUST_RES1_GAIN: 0.35,
+  EXHAUST_RES2_GAIN: 0.28,
+  EXHAUST_RES3_GAIN: 0.20,
+  EXHAUST_RESONANCE_BASE: 0.55,
+  EXHAUST_RESONANCE_THROTTLE: 0.60,
 
   // Rev limiter
   REV_LIMITER_THRESHOLD: 0.98,
@@ -430,13 +434,23 @@ class EngineProcessor extends AudioWorkletProcessor {
       const rpmNorm = Math.min(1.0, rpm / SynthConstants.MECH_RPM_NORM);
       const mechNoise = (SynthConstants.MECH_GAIN_BASE + SynthConstants.MECH_GAIN_RPM * rpmNorm + SynthConstants.MECH_LOAD_FACTOR * loadStress) * hpf;
 
-      // Turbo-like whistle and spool texture
+      // Turbo-like whistle, spool texture, flutter, and wastegate
       const turboSpool = turboMode * Math.max(0.0, throttle - 0.2) * Math.min(1.0, rpm / 7000.0);
       const whistleFreq = SynthConstants.TURBO_SPOOL_BASE + SynthConstants.TURBO_SPOOL_RANGE * turboSpool;
       this.turboPhase += (2.0 * Math.PI * whistleFreq) / sampleRate;
       if (this.turboPhase > 2.0 * Math.PI) this.turboPhase -= 2.0 * Math.PI;
       const whistle = Math.sin(this.turboPhase) * (SynthConstants.TURBO_WHISTLE_GAIN * turboSpool);
       const turboWhoosh = turboSpool * (SynthConstants.TURBO_WHOOSH_BASE + SynthConstants.TURBO_WHOOSH_THROTTLE * throttle) * hpf;
+
+      // Turbo flutter (compressor surge on throttle lift)
+      const turboFlutter = turboMode * Math.max(0.0, this.lastThrottle - throttle) *
+        Math.sin(2.0 * Math.PI * SynthConstants.TURBO_FLUTTER_FREQ * i / sampleRate) *
+        SynthConstants.TURBO_FLUTTER_GAIN * (rpm / 7000.0);
+
+      // Wastegate chatter (pressure release)
+      const wastegateChatter = turboMode * Math.max(0.0, 1.0 - throttle * 0.5) *
+        Math.pow(Math.max(0, Math.sin(this.phase * 6.0)), 3.0) *
+        SynthConstants.TURBO_WASTEGATE_GAIN * (rpm / redlineRpm);
 
       // Combustion crackle: bursty modulation tied to firing phase
       // Under load, combustion is more aggressive and uneven
@@ -463,16 +477,16 @@ class EngineProcessor extends AudioWorkletProcessor {
       const valveClickEnvelope = Math.pow(Math.max(0, Math.sin(this.valveClickPhase)), SynthConstants.VALVE_CLICK_POWER);
       const valveClick = valveClickEnvelope * hpf * (SynthConstants.VALVE_CLICK_BASE + SynthConstants.VALVE_CLICK_RPM * (rpm / SynthConstants.MECH_RPM_NORM));
 
-      // Deceleration backfire: detect throttle lift and create popping
+      // Deceleration backfire: detect throttle lift and create popping (enhanced)
       const throttleDrop = Math.max(0, this.lastThrottle - throttle);
       this.lastThrottle = throttle;
       const decelWindow = Math.max(0.0, 1.0 - Math.abs(rpm - SynthConstants.BACKFIRE_CENTER_RPM) / SynthConstants.BACKFIRE_WIDTH);
-      const backfireTrigger = throttleDrop > SynthConstants.BACKFIRE_THRESHOLD ? Math.random() : 0;
+      const backfireTrigger = throttleDrop > SynthConstants.BACKFIRE_THRESHOLD ? Math.random() * SynthConstants.BACKFIRE_INTENSITY : 0;
       this.backfirePulse = Math.max(this.backfirePulse * SynthConstants.BACKFIRE_DECAY, backfireTrigger * decelWindow);
       const backfireNoise = this.backfirePulse * white * white * (SynthConstants.BACKFIRE_GAIN_BASE + SynthConstants.BACKFIRE_GAIN_LPF * this.lpfState);
 
-      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise + vtecIntakeEdge + fa24RumbleNoise + boxerBurble + valveClick + backfireNoise);
-      signal += whistle;
+      const noiseComp = noiseGain * (intakeNoise + mechNoise + combustionNoise + turboWhoosh + boxerNoise + vtecIntakeEdge + fa24RumbleNoise + boxerBurble + valveClick + backfireNoise + turboFlutter);
+      signal += whistle + wastegateChatter;
       signal += noiseComp;
 
       // 4. Body Resonance
