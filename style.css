@@ -459,10 +459,11 @@ h1 {
 .settings {
   margin-top: 2rem;
   text-align: left;
-  background: rgba(0,0,0,0.3);
+  background: rgba(0,0,0,0.5);
   padding: 1.5rem;
   border-radius: 12px;
-  border: 1px solid rgba(0,255,136,0.1);
+  border: 2px solid rgba(255,0,0,0.2);
+  box-shadow: inset 0 0 15px rgba(255,0,0,0.1);
 }
 
 .control-group {
@@ -474,75 +475,82 @@ h1 {
 }
 
 .control-group label {
-  color: #aaa;
+  color: #ff6600;
   font-size: 0.9rem;
+  font-weight: 600;
 }
 
 input[type="number"],
 select {
-  background: rgba(0,0,0,0.5);
-  border: 1px solid rgba(0,255,136,0.2);
-  color: white;
+  background: rgba(0,0,0,0.6);
+  border: 2px solid rgba(255,0,0,0.3);
+  color: #ff6600;
   padding: 8px;
   border-radius: 8px;
   width: 80px;
   transition: all 0.2s;
+  font-weight: 600;
 }
 
 input[type="number"]:focus,
 select:focus {
-  border-color: #00ff88;
-  box-shadow: 0 0 10px rgba(0,255,136,0.3);
+  border-color: #ff0000;
+  box-shadow: 0 0 15px rgba(255,0,0,0.5);
+  color: #ff0000;
 }
 
 input[type="range"] {
   width: 60%;
-  height: 6px;
-  border-radius: 3px;
-  background: rgba(0,0,0,0.5);
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(255,0,0,0.2) 100%);
   outline: none;
   -webkit-appearance: none;
+  border: 1px solid rgba(255,0,0,0.3);
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #00ff88, #00ccff);
+  background: linear-gradient(135deg, #ff0000, #ff6600);
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(0,255,136,0.5);
+  box-shadow: 0 0 15px rgba(255,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.3);
+  border: 2px solid rgba(255,0,0,0.5);
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #00ff88, #00ccff);
+  background: linear-gradient(135deg, #ff0000, #ff6600);
   cursor: pointer;
-  border: none;
-  box-shadow: 0 0 10px rgba(0,255,136,0.5);
+  border: 2px solid rgba(255,0,0,0.5);
+  box-shadow: 0 0 15px rgba(255,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.3);
 }
 
 input[type="checkbox"] {
   width: 20px;
   height: 20px;
   cursor: pointer;
-  accent-color: #00ff88;
+  accent-color: #ff0000;
 }
 
 .instructions {
   margin-top: 1.5rem;
-  background: rgba(0,255,136,0.05);
+  background: rgba(255,0,0,0.05);
   padding: 1rem;
   border-radius: 8px;
-  border: 1px solid rgba(0,255,136,0.2);
+  border: 2px solid rgba(255,0,0,0.25);
+  box-shadow: inset 0 0 10px rgba(255,0,0,0.1);
 }
 
 .instructions p {
   margin: 0 0 0.5rem 0;
-  color: #00ff88;
+  color: #ff6600;
+  font-weight: bold;
 }
 
 .instructions ul {
@@ -558,7 +566,8 @@ input[type="checkbox"] {
 }
 
 .instructions strong {
-  color: #00ff88;
+  color: #ff6600;
+  font-weight: 900;
 }
 
 /* Visual feedback for disabled state */
@@ -571,15 +580,16 @@ button:disabled {
 button:focus,
 input:focus,
 select:focus {
-  outline: 2px solid #00ff88;
+  outline: 2px solid #ff0000;
   outline-offset: 2px;
 }
 
 #status {
-  color: #00ff88;
-  font-weight: bold;
+  color: #ff6600;
+  font-weight: 900;
   font-size: 1.1rem;
-  text-shadow: 0 0 10px rgba(0,255,136,0.5);
+  text-shadow: 0 0 15px rgba(255,102,0,0.6);
+  letter-spacing: 1px;
 }
 
 /* Responsive design */
@@ -681,9 +691,10 @@ select:focus {
   margin: 0.5rem 0 0.75rem;
   border-radius: 10px;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(0, 255, 136, 0.2);
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255, 0, 0, 0.3);
   height: 64px;
+  box-shadow: inset 0 0 15px rgba(255,0,0,0.15);
 }
 
 .spectrum-canvas {
