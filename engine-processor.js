@@ -215,6 +215,8 @@ class EngineProcessor extends AudioWorkletProcessor {
     // Rev limiter state
     this.revLimiterCycle = 0;
     this.revLimiterActive = false;
+    this.transientPulse = 0;
+    this.learnedEqState = 0;
   }
 
   static get parameterDescriptors() {
@@ -230,7 +232,9 @@ class EngineProcessor extends AudioWorkletProcessor {
       { name: 'redlineRpm', defaultValue: 7000, minValue: 3000, maxValue: 12000 },
       { name: 'load', defaultValue: 0, minValue: 0, maxValue: 1 },
       { name: 'v8Mode', defaultValue: 0, minValue: 0, maxValue: 1 },
-      { name: 'rotaryMode', defaultValue: 0, minValue: 0, maxValue: 1 }
+      { name: 'rotaryMode', defaultValue: 0, minValue: 0, maxValue: 1 },
+      { name: 'perspective', defaultValue: 0, minValue: 0, maxValue: 2 },
+      { name: 'learnBlend', defaultValue: 0, minValue: 0, maxValue: 1 }
     ];
   }
 
@@ -257,6 +261,8 @@ class EngineProcessor extends AudioWorkletProcessor {
       const load = getParamValue(parameters.load, i);
       const v8Mode = getParamValue(parameters.v8Mode, i);
       const rotaryMode = getParamValue(parameters.rotaryMode, i);
+      const perspective = getParamValue(parameters.perspective, i);
+      const learnBlend = getParamValue(parameters.learnBlend, i);
 
       // Rev limiter simulation: fuel cut at redline
       let revLimiterCut = 1.0;
@@ -289,6 +295,11 @@ class EngineProcessor extends AudioWorkletProcessor {
       if (this.phase > 2.0 * Math.PI) {
         this.phase -= 2.0 * Math.PI;
       }
+
+      // Event-driven ignition transient for stronger character differences
+      const phasePulse = Math.max(0, Math.sin(this.phase));
+      const transientExcite = Math.pow(phasePulse, 14.0) * (0.12 + 0.22 * throttle + 0.18 * load);
+      this.transientPulse = Math.max(this.transientPulse * SynthConstants.TRANSIENT_DECAY, transientExcite);
 
       // 2. Harmonic Synthesis (Anti-aliased)
       // VTEC profile: blend from low-cam tone to high-cam tone around crossover RPM.
@@ -512,18 +523,33 @@ class EngineProcessor extends AudioWorkletProcessor {
       const exhaustResonance = SynthConstants.EXHAUST_RES1_GAIN * this.exhaustRes1State + SynthConstants.EXHAUST_RES2_GAIN * this.exhaustRes2State + SynthConstants.EXHAUST_RES3_GAIN * this.exhaustRes3State;
       signal += exhaustResonance * (SynthConstants.EXHAUST_RESONANCE_BASE + SynthConstants.EXHAUST_RESONANCE_THROTTLE * throttle);
 
+      // Dynamic formant sweep across RPM/load + perspective coloration
+      const rpmNormFormant = Math.min(1.0, rpm / Math.max(1.0, redlineRpm));
+      const perspectiveTilt = perspective === 1 ? -0.1 : (perspective >= 2 ? 0.15 : 0.0);
+      const formantSweep = 0.7 + SynthConstants.FORMANT_SWEEP_SCALE * (rpmNormFormant + throttle * 0.7 + load * 0.5 + perspectiveTilt);
+      signal += exhaustResonance * formantSweep + this.transientPulse * (0.16 + 0.14 * throttle);
+
       // Apply rev limiter cut (simulates fuel cut)
       signal *= revLimiterCut;
 
       // 5. Distortion
       // Under load, engine runs harder and produces more distortion
       const drive = SynthConstants.DISTORTION_BASE + SynthConstants.DISTORTION_THROTTLE * throttle + SynthConstants.DISTORTION_VTEC * vtecBlend + SynthConstants.DISTORTION_FA24 * fa24Mode + SynthConstants.DISTORTION_LOAD * loadStress;
-      signal = Math.tanh(drive * signal);
+      const lowBand = Math.tanh((drive * 0.85) * signal);
+      const midBand = Math.tanh((drive * 1.1) * (signal + 0.08 * this.bpfState));
+      const hiBand = Math.tanh((drive * 0.65) * (signal - this.lpfState));
+      signal = lowBand * 0.55 + midBand * 0.35 + hiBand * 0.10;
 
       // Post-filter distortion output to reduce buzzy high-RPM edge
       const postLpfAlpha = SynthConstants.POST_LPF_ALPHA_BASE + SynthConstants.POST_LPF_ALPHA_THROTTLE * throttle;
       this.postLpfState += postLpfAlpha * (signal - this.postLpfState);
       signal = SynthConstants.POST_LPF_MIX_FILTERED * this.postLpfState + SynthConstants.POST_LPF_MIX_DRY * signal;
+
+      // Learned-style correction (lightweight surrogate)
+      const blend = Math.min(1.0, Math.max(0.0, learnBlend));
+      const targetEq = (this.lpfState * 0.22) - (hpf * 0.08) + (combustionNoise * 0.12);
+      this.learnedEqState += 0.04 * (targetEq - this.learnedEqState);
+      signal = signal * (1.0 - SynthConstants.LEARN_BLEND_MAX * blend) + this.learnedEqState * (SynthConstants.LEARN_BLEND_MAX * blend);
 
       // Volume scaling
       signal *= SynthConstants.MASTER_VOLUME;

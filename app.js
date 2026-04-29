@@ -122,7 +122,8 @@ const CONFIG = {
     realVehicleMode: false,
     accelThreshold: 0.5,
     accelMax: 5.0,
-    cruiseThrottle: 0.15
+    cruiseThrottle: 0.15,
+    learnBlend: 0.35
   }
 };
 
@@ -182,7 +183,8 @@ const params = {
   realVehicleMode: CONFIG.defaults.realVehicleMode,
   accelThreshold: CONFIG.defaults.accelThreshold,
   accelMax: CONFIG.defaults.accelMax,
-  cruiseThrottle: CONFIG.defaults.cruiseThrottle
+  cruiseThrottle: CONFIG.defaults.cruiseThrottle,
+  learnBlend: CONFIG.defaults.learnBlend
 };
 
 // Vehicle state for simple load and speed modeling
@@ -964,6 +966,8 @@ function update() {
     const loadParam = engineNode.parameters.get('load');
     const v8ModeParam = engineNode.parameters.get('v8Mode');
     const rotaryModeParam = engineNode.parameters.get('rotaryMode');
+    const perspectiveParam = engineNode.parameters.get('perspective');
+    const learnBlendParam = engineNode.parameters.get('learnBlend');
 
     const now = audioCtx.currentTime;
     rpmParam.setValueAtTime(params.currentRpm, now);
@@ -978,6 +982,11 @@ function update() {
     loadParam.setValueAtTime(params.load, now);
     if (v8ModeParam) v8ModeParam.setValueAtTime(params.enginePreset === 'v8' ? 1 : 0, now);
     if (rotaryModeParam) rotaryModeParam.setValueAtTime(params.enginePreset === 'rotary' ? 1 : 0, now);
+    if (perspectiveParam) {
+      const perspectiveValue = params.audioPerspective === 'interior' ? 1 : (params.audioPerspective === 'enginebay' ? 2 : 0);
+      perspectiveParam.setValueAtTime(perspectiveValue, now);
+    }
+    if (learnBlendParam) learnBlendParam.setValueAtTime(params.learnBlend, now);
   }
 
   // Update UI
