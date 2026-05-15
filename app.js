@@ -1168,24 +1168,24 @@ const pedal = document.getElementById('pedal-btn');
 if(pedal) {
     pedal.addEventListener('pointerdown', async (e) => {
       e.preventDefault();
-      let isAudioReady = true;
       try {
         await unlockAudio();
       } catch (err) {
-        isAudioReady = false;
         console.warn('Audio unlock failed on gas pedal pointerdown:', err);
+        return;
       }
-      if (!isAudioReady) return;
       if (!params.realVehicleMode) setThrottle(1.0);
     });
     const releaseThrottle = (e) => {
       e.preventDefault();
-      if (e.type === 'pointerleave' && e.buttons !== 0) return;
       if (!params.realVehicleMode) setThrottle(0.0);
     };
     pedal.addEventListener('pointerup', releaseThrottle);
     pedal.addEventListener('pointercancel', releaseThrottle);
-    pedal.addEventListener('pointerleave', releaseThrottle);
+    pedal.addEventListener('pointerleave', (e) => {
+      e.preventDefault();
+      if (e.buttons === 0 && !params.realVehicleMode) setThrottle(0.0);
+    });
 }
 
 if (shouldPrimeAudioOnGesture()) {
