@@ -282,7 +282,7 @@ let wakeLock = null;
  * @returns {boolean}
  */
 function isAppleMobileWebKit() {
-  return /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent) && ('ontouchend' in document);
+  return /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent) && ('ontouchstart' in document);
 }
 
 /**
@@ -310,6 +310,7 @@ async function unlockAudioContext() {
   source.start(0);
 
   await new Promise((resolve) => {
+    // Fallback timeout prevents hanging if onended does not fire on some iOS builds.
     const timeoutId = setTimeout(resolve, 120);
     source.onended = () => {
       clearTimeout(timeoutId);
