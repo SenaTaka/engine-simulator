@@ -1172,7 +1172,6 @@ if(pedal) {
         await unlockAudio();
       } catch (err) {
         console.warn('Audio unlock failed on gas pedal pointerdown:', err);
-        return;
       }
       if (!params.realVehicleMode) setThrottle(1.0);
     });
@@ -1184,7 +1183,7 @@ if(pedal) {
     pedal.addEventListener('pointercancel', releaseThrottle);
     pedal.addEventListener('pointerleave', (e) => {
       e.preventDefault();
-      if (e.buttons === 0 && !params.realVehicleMode) setThrottle(0.0);
+      if (!params.realVehicleMode) setThrottle(0.0);
     });
 }
 
