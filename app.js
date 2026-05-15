@@ -1173,7 +1173,7 @@ if(pedal) {
         await unlockAudio();
       } catch (err) {
         isAudioReady = false;
-        console.warn('Audio unlock failed on GAS PEDAL pointerdown:', err);
+        console.warn('Audio unlock failed on gas pedal pointerdown:', err);
       }
       if (!isAudioReady) return;
       if (!params.realVehicleMode) setThrottle(1.0);
