@@ -131,6 +131,7 @@ const CONFIG = {
 let audioCtx;
 let engineNode = null;
 let isPlaying = false;
+let isAudioUnlocked = false;
 
 // Audio effect nodes
 let compressorNode = null;
@@ -274,6 +275,48 @@ const cruiseThrottleInput = document.getElementById('cruise-throttle');
 
 // Screen Wake Lock support
 let wakeLock = null;
+
+/**
+ * Detect Apple mobile WebKit environment (Safari and iOS Chrome/Edge)
+ * iPadOS may report "Macintosh", so touch capability is also checked.
+ * @returns {boolean}
+ */
+function isAppleMobileWebKit() {
+  return /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent) && ('ontouchend' in document);
+}
+
+/**
+ * Explicitly unlock audio output on iOS-family browsers.
+ * @returns {Promise<void>}
+ */
+async function unlockAudioContext() {
+  if (!audioCtx) return;
+
+  if (audioCtx.state === 'suspended') {
+    await audioCtx.resume();
+  }
+
+  if (isAudioUnlocked) return;
+
+  // One-sample silent playback to satisfy iOS audio unlock behavior.
+  const buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+  const source = audioCtx.createBufferSource();
+  const silentGain = audioCtx.createGain();
+  silentGain.gain.value = 0;
+
+  source.buffer = buffer;
+  source.connect(silentGain);
+  silentGain.connect(audioCtx.destination);
+  source.start(0);
+
+  await new Promise((resolve) => {
+    source.onended = resolve;
+  });
+
+  source.disconnect();
+  silentGain.disconnect();
+  isAudioUnlocked = true;
+}
 
 async function requestWakeLock() {
   if ('wakeLock' in navigator) {
@@ -1093,6 +1136,22 @@ if(pedal) {
     });
 }
 
+if (isAppleMobileWebKit()) {
+  const primeAudioFromGesture = async () => {
+    try {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      await unlockAudioContext();
+    } catch (e) {
+      console.warn('Audio prime failed:', e);
+    }
+  };
+
+  window.addEventListener('touchstart', primeAudioFromGesture, { once: true, passive: true });
+  window.addEventListener('pointerdown', primeAudioFromGesture, { once: true, passive: true });
+}
+
 // Start Audio
 startButton.addEventListener('click', async () => {
   try {
@@ -1108,9 +1167,7 @@ startButton.addEventListener('click', async () => {
       return;
     }
 
-    if (audioCtx.state === 'suspended') {
-      await audioCtx.resume();
-    }
+    await unlockAudioContext();
 
     // Show loading status
     statusText.textContent = 'Loading...';
