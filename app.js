@@ -310,7 +310,11 @@ async function unlockAudioContext() {
   source.start(0);
 
   await new Promise((resolve) => {
-    source.onended = resolve;
+    const timeoutId = setTimeout(resolve, 120);
+    source.onended = () => {
+      clearTimeout(timeoutId);
+      resolve();
+    };
   });
 
   source.disconnect();
@@ -1137,14 +1141,19 @@ if(pedal) {
 }
 
 if (isAppleMobileWebKit()) {
+  let hasPrimedAudioFromGesture = false;
+
   const primeAudioFromGesture = async () => {
+    if (hasPrimedAudioFromGesture) return;
+    hasPrimedAudioFromGesture = true;
+
     try {
       if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
       await unlockAudioContext();
     } catch (e) {
-      console.warn('Audio prime failed:', e);
+      console.warn('Audio prime failed on Apple mobile WebKit:', e);
     }
   };
 
