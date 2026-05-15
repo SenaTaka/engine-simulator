@@ -133,6 +133,7 @@ let engineNode = null;
 let isPlaying = false;
 let isAudioUnlocked = false;
 let audioUnlockPromise = null;
+let hasAudioStateListener = false;
 
 // Audio effect nodes
 let compressorNode = null;
@@ -232,6 +233,7 @@ const throttleFill = document.getElementById('throttle-fill');
 const loadFill = document.getElementById('load-fill');
 const startButton = document.getElementById('start-btn');
 const statusText = document.getElementById('status');
+const audioStateDebugText = document.getElementById('audio-state-debug');
 const speedDisplay = document.getElementById('speed-value');
 const gearDisplay = document.getElementById('gear-value');
 const accelTimeDisplay = document.getElementById('accel-time');
@@ -285,35 +287,60 @@ function shouldPrimeAudioOnGesture() {
   return ('ontouchstart' in window) && !!(window.AudioContext || window.webkitAudioContext);
 }
 
+function updateAudioStateDebug() {
+  if (!audioStateDebugText) return;
+  audioStateDebugText.textContent = `AudioContext: ${audioCtx ? audioCtx.state : 'not-created'}`;
+}
+
+function ensureAudioContext() {
+  if (audioCtx) {
+    updateAudioStateDebug();
+    return audioCtx;
+  }
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+
+  audioCtx = new AudioContextClass();
+  updateAudioStateDebug();
+  if (!hasAudioStateListener) {
+    audioCtx.addEventListener('statechange', updateAudioStateDebug);
+    hasAudioStateListener = true;
+  }
+  return audioCtx;
+}
+
 /**
  * Explicitly unlock audio output on iOS-family browsers.
  * @returns {Promise<void>}
  */
-async function unlockAudioContext() {
-  if (!audioCtx) return;
+async function unlockAudio() {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+
+  if (ctx.state === 'suspended') {
+    await ctx.resume();
+    updateAudioStateDebug();
+  }
 
   if (isAudioUnlocked) return;
   if (audioUnlockPromise) return audioUnlockPromise;
 
   audioUnlockPromise = (async () => {
-  if (audioCtx.state === 'suspended') {
-    await audioCtx.resume();
-  }
-
   if (isAudioUnlocked) return;
 
   // Short fallback to avoid hanging when iOS fails to emit onended for tiny buffers.
   const SHORT_AUDIO_UNLOCK_TIMEOUT_MS = 120;
 
   // One-sample silent playback to satisfy iOS audio unlock behavior.
-  const buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
-  const source = audioCtx.createBufferSource();
-  const silentGain = audioCtx.createGain();
+  const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+  const source = ctx.createBufferSource();
+  const silentGain = ctx.createGain();
   silentGain.gain.value = 0;
 
   source.buffer = buffer;
   source.connect(silentGain);
-  silentGain.connect(audioCtx.destination);
+  silentGain.connect(ctx.destination);
   try {
     source.start(0);
 
@@ -327,6 +354,7 @@ async function unlockAudioContext() {
     });
 
     isAudioUnlocked = true;
+    updateAudioStateDebug();
   } finally {
     try { source.disconnect(); } catch (_) {}
     try { silentGain.disconnect(); } catch (_) {}
@@ -1138,24 +1166,22 @@ window.addEventListener('keyup', (e) => {
 // Mobile / Touch support
 const pedal = document.getElementById('pedal-btn');
 if(pedal) {
-    pedal.addEventListener('mousedown', () => {
+    pedal.addEventListener('pointerdown', async (e) => {
+      e.preventDefault();
+      try {
+        await unlockAudio();
+      } catch (err) {
+        console.warn('Audio unlock failed on GAS PEDAL pointerdown:', err);
+      }
       if (!params.realVehicleMode) setThrottle(1.0);
     });
-    pedal.addEventListener('mouseup', () => {
+    const releaseThrottle = (e) => {
+      e.preventDefault();
       if (!params.realVehicleMode) setThrottle(0.0);
-    });
-    pedal.addEventListener('touchstart', (e) => {
-      if (!params.realVehicleMode) {
-        e.preventDefault();
-        setThrottle(1.0);
-      }
-    });
-    pedal.addEventListener('touchend', (e) => {
-      if (!params.realVehicleMode) {
-        e.preventDefault();
-        setThrottle(0.0);
-      }
-    });
+    };
+    pedal.addEventListener('pointerup', releaseThrottle);
+    pedal.addEventListener('pointercancel', releaseThrottle);
+    pedal.addEventListener('pointerleave', releaseThrottle);
 }
 
 if (shouldPrimeAudioOnGesture()) {
@@ -1167,9 +1193,9 @@ if (shouldPrimeAudioOnGesture()) {
 
     try {
       if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        ensureAudioContext();
       }
-      await unlockAudioContext();
+      await unlockAudio();
     } catch (e) {
       console.warn('Audio prime failed on touch device:', e);
     }
@@ -1181,19 +1207,18 @@ if (shouldPrimeAudioOnGesture()) {
 // Start Audio
 startButton.addEventListener('click', async () => {
   try {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
+    ensureAudioContext();
 
     if (isPlaying) {
       await audioCtx.suspend();
+      updateAudioStateDebug();
       isPlaying = false;
       startButton.textContent = 'Start Engine';
       statusText.textContent = 'Engine Stopped';
       return;
     }
 
-    await unlockAudioContext();
+    await unlockAudio();
 
     // Show loading status
     statusText.textContent = 'Loading...';
@@ -1262,6 +1287,7 @@ startButton.addEventListener('click', async () => {
     startButton.textContent = 'Stop Engine';
     statusText.textContent = 'Running';
     startButton.disabled = false;
+    updateAudioStateDebug();
     update();
   } catch (e) {
     console.error('Error starting engine:', e);
@@ -1270,6 +1296,8 @@ startButton.addEventListener('click', async () => {
     isPlaying = false;
   }
 });
+
+updateAudioStateDebug();
 
 // Initialize inputs
 updateParamsFromUI();
