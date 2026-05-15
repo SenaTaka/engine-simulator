@@ -277,12 +277,11 @@ const cruiseThrottleInput = document.getElementById('cruise-throttle');
 let wakeLock = null;
 
 /**
- * Detect Apple mobile WebKit environment (Safari and iOS Chrome/Edge)
- * iPadOS may report "Macintosh", so touch capability is also checked.
+ * Detect whether first-gesture audio priming should run.
  * @returns {boolean}
  */
-function isAppleMobileWebKit() {
-  return /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent) && ('ontouchstart' in document);
+function shouldPrimeAudioOnGesture() {
+  return ('ontouchstart' in window) && !!(window.AudioContext || window.webkitAudioContext);
 }
 
 /**
@@ -298,6 +297,8 @@ async function unlockAudioContext() {
 
   if (isAudioUnlocked) return;
 
+  const AUDIO_UNLOCK_TIMEOUT_MS = 120;
+
   // One-sample silent playback to satisfy iOS audio unlock behavior.
   const buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
   const source = audioCtx.createBufferSource();
@@ -311,7 +312,7 @@ async function unlockAudioContext() {
 
   await new Promise((resolve) => {
     // Fallback timeout prevents hanging if onended does not fire on some iOS builds.
-    const timeoutId = setTimeout(resolve, 120);
+    const timeoutId = setTimeout(resolve, AUDIO_UNLOCK_TIMEOUT_MS);
     source.onended = () => {
       clearTimeout(timeoutId);
       resolve();
@@ -1141,7 +1142,7 @@ if(pedal) {
     });
 }
 
-if (isAppleMobileWebKit()) {
+if (shouldPrimeAudioOnGesture()) {
   let hasPrimedAudioFromGesture = false;
 
   const primeAudioFromGesture = async () => {
@@ -1154,11 +1155,10 @@ if (isAppleMobileWebKit()) {
       }
       await unlockAudioContext();
     } catch (e) {
-      console.warn('Audio prime failed on Apple mobile WebKit:', e);
+      console.warn('Audio prime failed on touch device:', e);
     }
   };
 
-  window.addEventListener('touchstart', primeAudioFromGesture, { once: true, passive: true });
   window.addEventListener('pointerdown', primeAudioFromGesture, { once: true, passive: true });
 }
 
