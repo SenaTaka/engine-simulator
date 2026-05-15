@@ -131,6 +131,8 @@ const CONFIG = {
 let audioCtx;
 let engineNode = null;
 let isPlaying = false;
+let isAudioUnlocked = false;
+let audioUnlockPromise = null;
 
 // Audio effect nodes
 let compressorNode = null;
@@ -274,6 +276,69 @@ const cruiseThrottleInput = document.getElementById('cruise-throttle');
 
 // Screen Wake Lock support
 let wakeLock = null;
+
+/**
+ * Detect whether first-gesture audio priming should run.
+ * @returns {boolean}
+ */
+function shouldPrimeAudioOnGesture() {
+  return ('ontouchstart' in window) && !!(window.AudioContext || window.webkitAudioContext);
+}
+
+/**
+ * Explicitly unlock audio output on iOS-family browsers.
+ * @returns {Promise<void>}
+ */
+async function unlockAudioContext() {
+  if (!audioCtx) return;
+
+  if (isAudioUnlocked) return;
+  if (audioUnlockPromise) return audioUnlockPromise;
+
+  audioUnlockPromise = (async () => {
+  if (audioCtx.state === 'suspended') {
+    await audioCtx.resume();
+  }
+
+  if (isAudioUnlocked) return;
+
+  // Short fallback to avoid hanging when iOS fails to emit onended for tiny buffers.
+  const SHORT_AUDIO_UNLOCK_TIMEOUT_MS = 120;
+
+  // One-sample silent playback to satisfy iOS audio unlock behavior.
+  const buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+  const source = audioCtx.createBufferSource();
+  const silentGain = audioCtx.createGain();
+  silentGain.gain.value = 0;
+
+  source.buffer = buffer;
+  source.connect(silentGain);
+  silentGain.connect(audioCtx.destination);
+  try {
+    source.start(0);
+
+    await new Promise((resolve) => {
+      // Fallback timeout prevents hanging if onended does not fire on some iOS builds.
+      const timeoutId = setTimeout(resolve, SHORT_AUDIO_UNLOCK_TIMEOUT_MS);
+      source.onended = () => {
+        clearTimeout(timeoutId);
+        resolve();
+      };
+    });
+
+    isAudioUnlocked = true;
+  } finally {
+    try { source.disconnect(); } catch (_) {}
+    try { silentGain.disconnect(); } catch (_) {}
+  }
+  })();
+
+  try {
+    await audioUnlockPromise;
+  } finally {
+    audioUnlockPromise = null;
+  }
+}
 
 async function requestWakeLock() {
   if ('wakeLock' in navigator) {
@@ -1093,6 +1158,26 @@ if(pedal) {
     });
 }
 
+if (shouldPrimeAudioOnGesture()) {
+  let hasPrimedAudioFromGesture = false;
+
+  const primeAudioFromGesture = async () => {
+    if (hasPrimedAudioFromGesture) return;
+    hasPrimedAudioFromGesture = true;
+
+    try {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      await unlockAudioContext();
+    } catch (e) {
+      console.warn('Audio prime failed on touch device:', e);
+    }
+  };
+
+  window.addEventListener('pointerdown', primeAudioFromGesture, { once: true, passive: true });
+}
+
 // Start Audio
 startButton.addEventListener('click', async () => {
   try {
@@ -1108,9 +1193,7 @@ startButton.addEventListener('click', async () => {
       return;
     }
 
-    if (audioCtx.state === 'suspended') {
-      await audioCtx.resume();
-    }
+    await unlockAudioContext();
 
     // Show loading status
     statusText.textContent = 'Loading...';
