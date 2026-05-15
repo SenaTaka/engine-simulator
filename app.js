@@ -1207,10 +1207,14 @@ if (shouldPrimeAudioOnGesture()) {
 // Start Audio
 startButton.addEventListener('click', async () => {
   try {
-    ensureAudioContext();
+    const ctx = ensureAudioContext();
+    if (!ctx) {
+      statusText.textContent = 'Error: AudioContext is not supported in this browser.';
+      return;
+    }
 
     if (isPlaying) {
-      await audioCtx.suspend();
+      await ctx.suspend();
       updateAudioStateDebug();
       isPlaying = false;
       startButton.textContent = 'Start Engine';
