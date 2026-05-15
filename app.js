@@ -132,6 +132,7 @@ let audioCtx;
 let engineNode = null;
 let isPlaying = false;
 let isAudioUnlocked = false;
+let audioUnlockPromise = null;
 
 // Audio effect nodes
 let compressorNode = null;
@@ -291,13 +292,18 @@ function shouldPrimeAudioOnGesture() {
 async function unlockAudioContext() {
   if (!audioCtx) return;
 
+  if (isAudioUnlocked) return;
+  if (audioUnlockPromise) return audioUnlockPromise;
+
+  audioUnlockPromise = (async () => {
   if (audioCtx.state === 'suspended') {
     await audioCtx.resume();
   }
 
   if (isAudioUnlocked) return;
 
-  const AUDIO_UNLOCK_TIMEOUT_MS = 120;
+  // Short fallback to avoid hanging when iOS fails to emit onended for tiny buffers.
+  const SHORT_AUDIO_UNLOCK_TIMEOUT_MS = 120;
 
   // One-sample silent playback to satisfy iOS audio unlock behavior.
   const buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
@@ -308,20 +314,30 @@ async function unlockAudioContext() {
   source.buffer = buffer;
   source.connect(silentGain);
   silentGain.connect(audioCtx.destination);
-  source.start(0);
+  try {
+    source.start(0);
 
-  await new Promise((resolve) => {
-    // Fallback timeout prevents hanging if onended does not fire on some iOS builds.
-    const timeoutId = setTimeout(resolve, AUDIO_UNLOCK_TIMEOUT_MS);
-    source.onended = () => {
-      clearTimeout(timeoutId);
-      resolve();
-    };
-  });
+    await new Promise((resolve) => {
+      // Fallback timeout prevents hanging if onended does not fire on some iOS builds.
+      const timeoutId = setTimeout(resolve, SHORT_AUDIO_UNLOCK_TIMEOUT_MS);
+      source.onended = () => {
+        clearTimeout(timeoutId);
+        resolve();
+      };
+    });
 
-  source.disconnect();
-  silentGain.disconnect();
-  isAudioUnlocked = true;
+    isAudioUnlocked = true;
+  } finally {
+    try { source.disconnect(); } catch (_) {}
+    try { silentGain.disconnect(); } catch (_) {}
+  }
+  })();
+
+  try {
+    await audioUnlockPromise;
+  } finally {
+    audioUnlockPromise = null;
+  }
 }
 
 async function requestWakeLock() {
