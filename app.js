@@ -1168,15 +1168,19 @@ const pedal = document.getElementById('pedal-btn');
 if(pedal) {
     pedal.addEventListener('pointerdown', async (e) => {
       e.preventDefault();
+      let isAudioReady = true;
       try {
         await unlockAudio();
       } catch (err) {
+        isAudioReady = false;
         console.warn('Audio unlock failed on GAS PEDAL pointerdown:', err);
       }
+      if (!isAudioReady) return;
       if (!params.realVehicleMode) setThrottle(1.0);
     });
     const releaseThrottle = (e) => {
       e.preventDefault();
+      if (e.type === 'pointerleave' && e.buttons !== 0) return;
       if (!params.realVehicleMode) setThrottle(0.0);
     };
     pedal.addEventListener('pointerup', releaseThrottle);
